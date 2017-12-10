@@ -29,15 +29,22 @@ func NewBotFramework(api Sendable) *BotFramework {
 	return &bot
 }
 
-func (bot *BotFramework) HandleUpdate(update tgbotapi.Update) {
-
+func (bot *BotFramework) HandleUpdates(ch tgbotapi.UpdatesChannel) {
+	for update := range ch {
+		if update.Message == nil {
+			continue
+		}
+		if update.Message.IsCommand() {
+			bot.handleCommand(&update)
+		}
+	}
 }
 
 func (bot *BotFramework) RegisterCommand(c *Command) {
 	bot.commands[c.Name] = c
 }
 
-func (bot *BotFramework) HandleCommand(update *tgbotapi.Update) error {
+func (bot *BotFramework) handleCommand(update *tgbotapi.Update) error {
 	if command, ok := bot.commands[update.Message.Command()]; ok {
 		return command.Handler(bot, update)
 	}

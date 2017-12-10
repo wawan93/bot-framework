@@ -71,3 +71,32 @@ func TestCommands(t *testing.T) {
 		}
 	})
 }
+
+func TestBotFramework_HandleUpdates(t *testing.T) {
+	t.Parallel()
+	t.Skip("endless loop")
+
+	mock := new(testSendable)
+	bot := NewBotFramework(mock)
+	bot.RegisterCommand(&Command{
+		Name: "test",
+		Handler: func(bot Sendable, update *tgbotapi.Update) error {
+			bot.Send(&tgbotapi.MessageConfig{})
+			return nil
+		},
+	})
+
+	t.Run("Handle commands", func(t *testing.T) {
+		//command := tgbotapi.Update{
+		//	Message: &tgbotapi.Message{
+		//		Entities: &[]tgbotapi.MessageEntity{{Type: "bot_command", Offset: 0, Length: 5}},
+		//		Text:     "/test",
+		//	},
+		//}
+		//channel <- command
+
+		if !mock.MessageSent {
+			t.Error("Message not sent")
+		}
+	})
+}
