@@ -47,15 +47,22 @@ func TestCommands(t *testing.T) {
 		},
 	})
 
-	t.Run("Register", func (t *testing.T) {
+	t.Run("register", func (t *testing.T) {
 		t.Parallel()
+
+		err := bot.RegisterCommand(&Command{
+			Name: "asdf",
+		})
+		if err == nil || err.Error() != "command must start with slash" {
+			t.Error("command without slash must return error")
+		}
 
 		if len(bot.commands) != 1 {
 			t.Error("Command not registered")
 		}
 	})
 
-	t.Run("Handle command", func(t *testing.T) {
+	t.Run("handle command", func(t *testing.T) {
 		t.Parallel()
 
 		err := bot.handleCommand(&tgbotapi.Update{
@@ -70,7 +77,7 @@ func TestCommands(t *testing.T) {
 		}
 	})
 
-	t.Run("Not handle command", func(t *testing.T) {
+	t.Run("not handle command", func(t *testing.T) {
 		err := bot.handleCommand(&tgbotapi.Update{
 			Message: &tgbotapi.Message{
 				Text: "test",
@@ -147,5 +154,51 @@ func TestBotFramework_HandleUpdates(t *testing.T) {
 		if !mock.MessageSent {
 			t.Error("Message not sent")
 		}
+	})
+}
+
+func TestBotFramework_RegisterKeyboardCommand(t *testing.T) {
+	t.Parallel()
+
+	mock := new(testSendable)
+	bot := NewBotFramework(mock)
+
+	t.Run("register", func (t *testing.T) {
+		t.Parallel()
+
+		err := bot.RegisterKeyboardCommand(&Command{
+			Name: "/asdf",
+		})
+		if err == nil || err.Error() != "keyboard command must not start with slash" {
+			t.Error("keyboard command with slash must return error")
+		}
+
+		bot.RegisterKeyboardCommand(&Command{
+			Name: "👍 test",
+			Handler: func(bot Sendable, update *tgbotapi.Update) error {
+				return nil
+			},
+		})
+
+		if len(bot.commands) != 1 {
+			t.Error("Command not registered")
+		}
+	})
+
+	t.Run("handle commands", func(t *testing.T) {
+		t.Parallel()
+
+		err := bot.handleKeyboardCommand(&tgbotapi.Update{})
+		if err == nil || err.Error() != "no message" {
+			t.Error("handle must return")
+		}
+
+		bot.RegisterKeyboardCommand(&Command{
+			Name: "👍 test",
+			Handler: func(bot Sendable, update *tgbotapi.Update) error {
+				return nil
+			},
+		})
+
 	})
 }
