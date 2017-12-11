@@ -41,7 +41,7 @@ func TestCommands(t *testing.T) {
 
 	bot := NewBotFramework(new(testSendable))
 	bot.RegisterCommand(&Command{
-		Name: "test",
+		Name: "/test",
 		Handler: func(bot Sendable, update *tgbotapi.Update) error {
 			return nil
 		},
@@ -89,7 +89,7 @@ func TestBotFramework_HandleUpdates(t *testing.T) {
 	mock := new(testSendable)
 	bot := NewBotFramework(mock)
 	bot.RegisterCommand(&Command{
-		Name: "test",
+		Name: "/test",
 		Handler: func(bot Sendable, update *tgbotapi.Update) error {
 			bot.Send(&tgbotapi.MessageConfig{})
 			return nil
