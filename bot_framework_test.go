@@ -7,21 +7,27 @@ import (
 
 type testSendable struct {
 	Sendable
-	MessageSent bool
+	messages chan bool
 }
 
 func (s *testSendable) Send(c tgbotapi.Chattable) (tgbotapi.Message, error) {
-	s.MessageSent = true
+	s.messages <- true
 	return tgbotapi.Message{}, nil
 }
 
-func TestTestSendable(t *testing.T) {
+func newMock() *testSendable {
 	mock := new(testSendable)
+	mock.messages = make(chan bool, 1)
+	return mock
+}
+
+func TestTestSendable(t *testing.T) {
+	mock := newMock()
 	mock.Send(
 		&tgbotapi.MessageConfig{},
 	)
 
-	if !mock.MessageSent {
+	if ! <-mock.messages {
 		t.Error("Message not sent")
 	}
 }
@@ -29,7 +35,7 @@ func TestTestSendable(t *testing.T) {
 func TestNewBotFramework(t *testing.T) {
 	t.Parallel()
 
-	bot := NewBotFramework(new(testSendable))
+	bot := NewBotFramework(newMock())
 
 	if bot == nil {
 		t.Error("Not created bot")
@@ -39,7 +45,7 @@ func TestNewBotFramework(t *testing.T) {
 func TestCommands(t *testing.T) {
 	t.Parallel()
 
-	bot := NewBotFramework(new(testSendable))
+	bot := NewBotFramework(newMock())
 	bot.RegisterCommand(&Command{
 		Name: "/test",
 		Handler: func(bot Sendable, update *tgbotapi.Update) error {
@@ -93,7 +99,7 @@ func TestCommands(t *testing.T) {
 func TestBotFramework_HandleUpdates(t *testing.T) {
 	t.Parallel()
 
-	mock := new(testSendable)
+	mock := newMock()
 	bot := NewBotFramework(mock)
 	bot.RegisterCommand(&Command{
 		Name: "/test",
@@ -140,7 +146,7 @@ func TestBotFramework_HandleUpdates(t *testing.T) {
 			t.Error(err)
 		}
 
-		if !mock.MessageSent {
+		if ! <-mock.messages {
 			t.Error("Message not sent")
 		}
 	})
@@ -151,7 +157,7 @@ func TestBotFramework_HandleUpdates(t *testing.T) {
 		go bot.HandleUpdates(channel)
 		channel <- command
 
-		if !mock.MessageSent {
+		if ! <-mock.messages {
 			t.Error("Message not sent")
 		}
 	})
@@ -160,7 +166,7 @@ func TestBotFramework_HandleUpdates(t *testing.T) {
 func TestBotFramework_RegisterKeyboardCommand(t *testing.T) {
 	t.Parallel()
 
-	mock := new(testSendable)
+	mock := newMock()
 	bot := NewBotFramework(mock)
 
 	t.Run("register", func(t *testing.T) {
@@ -199,6 +205,5 @@ func TestBotFramework_RegisterKeyboardCommand(t *testing.T) {
 				return nil
 			},
 		})
-
 	})
 }
