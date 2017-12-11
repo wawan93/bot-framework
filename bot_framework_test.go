@@ -3,6 +3,7 @@ package bot_framework
 import (
 	"testing"
 	"github.com/go-telegram-bot-api/telegram-bot-api"
+	"errors"
 )
 
 type testSendable struct {
@@ -160,6 +161,18 @@ func TestBotFramework_HandleUpdates(t *testing.T) {
 		if ! <-mock.messages {
 			t.Error("Message not sent")
 		}
+
+		channel <- tgbotapi.Update{
+			Message: &tgbotapi.Message{
+				Entities: &[]tgbotapi.MessageEntity{{Type: "bot_command", Offset: 0, Length: 6}},
+				Text:     "/test2",
+				Chat:     &tgbotapi.Chat{ID: 1},
+			},
+		}
+
+		if ! <-mock.messages {
+			t.Error("message not sent")
+		}
 	})
 }
 
@@ -169,22 +182,24 @@ func TestBotFramework_RegisterKeyboardCommand(t *testing.T) {
 	mock := newMock()
 	bot := NewBotFramework(mock)
 
+	bot.RegisterKeyboardCommand(&Command{
+		Name: "👍 test",
+		Handler: func(bot Sendable, update *tgbotapi.Update) error {
+			bot.Send(&tgbotapi.MessageConfig{})
+			return nil
+		},
+	})
+
+	ch := make(chan tgbotapi.Update)
+
 	t.Run("register", func(t *testing.T) {
 		t.Parallel()
-
 		err := bot.RegisterKeyboardCommand(&Command{
 			Name: "/asdf",
 		})
 		if err == nil || err.Error() != "keyboard command must not start with slash" {
 			t.Error("keyboard command with slash must return error")
 		}
-
-		bot.RegisterKeyboardCommand(&Command{
-			Name: "👍 test",
-			Handler: func(bot Sendable, update *tgbotapi.Update) error {
-				return nil
-			},
-		})
 
 		if len(bot.commands) != 1 {
 			t.Error("Command not registered")
@@ -193,17 +208,43 @@ func TestBotFramework_RegisterKeyboardCommand(t *testing.T) {
 
 	t.Run("handle commands", func(t *testing.T) {
 		t.Parallel()
-
 		err := bot.handleKeyboardCommand(&tgbotapi.Update{})
 		if err == nil || err.Error() != "no message" {
-			t.Error("handle must return")
+			t.Error("handle must return error")
+		}
+	})
+
+	t.Run("handle keyboard command updates", func(t *testing.T) {
+		t.Parallel()
+
+		go bot.HandleUpdates(ch)
+
+		ch <- tgbotapi.Update{
+			Message: &tgbotapi.Message{
+				Text: "👍 test",
+			},
+		}
+
+		if ! <-mock.messages {
+			t.Error("Message not sent")
 		}
 
 		bot.RegisterKeyboardCommand(&Command{
-			Name: "👍 test",
+			Name: "👎 test",
 			Handler: func(bot Sendable, update *tgbotapi.Update) error {
-				return nil
+				return errors.New("test some error")
 			},
 		})
+
+		ch <- tgbotapi.Update{
+			Message: &tgbotapi.Message{
+				Text: "👎 test",
+				Chat: &tgbotapi.Chat{ID: 1},
+			},
+		}
+
+		if ! <-mock.messages {
+			t.Error("Message not sent")
+		}
 	})
 }
