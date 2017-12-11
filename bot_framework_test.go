@@ -6,18 +6,18 @@ import (
 	"errors"
 )
 
-type testSendable struct {
-	Sendable
+type testSender struct {
+	Sender
 	messages chan bool
 }
 
-func (s *testSendable) Send(c tgbotapi.Chattable) (tgbotapi.Message, error) {
+func (s *testSender) Send(c tgbotapi.Chattable) (tgbotapi.Message, error) {
 	s.messages <- true
 	return tgbotapi.Message{}, nil
 }
 
-func newMock() *testSendable {
-	mock := new(testSendable)
+func newMock() *testSender {
+	mock := new(testSender)
 	mock.messages = make(chan bool, 1)
 	return mock
 }
@@ -49,7 +49,7 @@ func TestCommands(t *testing.T) {
 	bot := NewBotFramework(newMock())
 	bot.RegisterCommand(&Command{
 		Name: "/test",
-		Handler: func(bot Sendable, update *tgbotapi.Update) error {
+		Handler: func(bot Sender, update *tgbotapi.Update) error {
 			return nil
 		},
 	})
@@ -104,7 +104,7 @@ func TestBotFramework_HandleUpdates(t *testing.T) {
 	bot := NewBotFramework(mock)
 	bot.RegisterCommand(&Command{
 		Name: "/test",
-		Handler: func(bot Sendable, update *tgbotapi.Update) error {
+		Handler: func(bot Sender, update *tgbotapi.Update) error {
 			bot.Send(&tgbotapi.MessageConfig{})
 			return nil
 		},
@@ -184,7 +184,7 @@ func TestBotFramework_RegisterKeyboardCommand(t *testing.T) {
 
 	bot.RegisterKeyboardCommand(&Command{
 		Name: "👍 test",
-		Handler: func(bot Sendable, update *tgbotapi.Update) error {
+		Handler: func(bot Sender, update *tgbotapi.Update) error {
 			bot.Send(&tgbotapi.MessageConfig{})
 			return nil
 		},
@@ -231,7 +231,7 @@ func TestBotFramework_RegisterKeyboardCommand(t *testing.T) {
 
 		bot.RegisterKeyboardCommand(&Command{
 			Name: "👎 test",
-			Handler: func(bot Sendable, update *tgbotapi.Update) error {
+			Handler: func(bot Sender, update *tgbotapi.Update) error {
 				return errors.New("test some error")
 			},
 		})

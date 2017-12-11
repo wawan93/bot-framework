@@ -7,24 +7,28 @@ import (
 
 type Command struct {
 	Name    string
-	Handler func(bot Sendable, update *tgbotapi.Update) error
+	Handler func(bot Sender, update *tgbotapi.Update) error
 }
 
-type Sendable interface {
+type Sender interface {
 	Send(c tgbotapi.Chattable) (tgbotapi.Message, error)
 }
 
+type commonHandler func(bot Sender, update *tgbotapi.Update) error
+
 type BotFramework struct {
-	Sendable
-	commands map[string]*Command
-	messages chan tgbotapi.Chattable
+	Sender
+	commands         map[string]*Command
+	messages         chan tgbotapi.Chattable
+	plainTextHandler commonHandler
 }
 
-func NewBotFramework(api Sendable) *BotFramework {
+func NewBotFramework(api Sender) *BotFramework {
 	bot := BotFramework{
 		api,
 		make(map[string]*Command),
 		make(chan tgbotapi.Chattable),
+		nil,
 	}
 	return &bot
 }
@@ -33,10 +37,14 @@ func (bot *BotFramework) HandleUpdates(ch tgbotapi.UpdatesChannel) {
 	for update := range ch {
 		go func() {
 			err := bot.handleUpdate(&update)
-			if err != nil {
-				if update.Message != nil {
-					bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, err.Error()))
-				}
+			if err == nil {
+				return
+			}
+			if update.Message != nil {
+				bot.Send(tgbotapi.NewMessage(
+					update.Message.Chat.ID,
+					err.Error(),
+				))
 			}
 		}()
 	}
@@ -57,8 +65,12 @@ func (bot *BotFramework) handleUpdate(update *tgbotapi.Update) error {
 		if err.Error() != "command not found" {
 			return err
 		}
+		err = bot.handlePlainText(update)
+		if err == nil {
+			return nil
+		}
 	}
-	return errors.New("not handled")
+	return errors.New("unknown command")
 }
 
 func (bot *BotFramework) RegisterCommand(c *Command) error {
@@ -93,4 +105,16 @@ func (bot *BotFramework) handleKeyboardCommand(update *tgbotapi.Update) error {
 		return command.Handler(bot, update)
 	}
 	return errors.New("command not found")
+}
+
+func (bot *BotFramework) RegisterPlainTextHandler(f commonHandler) error {
+	bot.plainTextHandler = f
+	return nil
+}
+
+func (bot *BotFramework) handlePlainText(update *tgbotapi.Update) error {
+	if bot.plainTextHandler != nil {
+		return bot.plainTextHandler(bot, update)
+	}
+	return errors.New("handler not set")
 }
