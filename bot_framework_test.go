@@ -47,7 +47,7 @@ func TestCommands(t *testing.T) {
 		},
 	})
 
-	t.Run("register", func (t *testing.T) {
+	t.Run("register", func(t *testing.T) {
 		t.Parallel()
 
 		err := bot.RegisterCommand(&Command{
@@ -163,7 +163,7 @@ func TestBotFramework_RegisterKeyboardCommand(t *testing.T) {
 	mock := new(testSendable)
 	bot := NewBotFramework(mock)
 
-	t.Run("register", func (t *testing.T) {
+	t.Run("register", func(t *testing.T) {
 		t.Parallel()
 
 		err := bot.RegisterKeyboardCommand(&Command{

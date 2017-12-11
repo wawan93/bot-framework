@@ -71,7 +71,7 @@ func (bot *BotFramework) RegisterCommand(c *Command) error {
 }
 
 func (bot *BotFramework) handleCommand(update *tgbotapi.Update) error {
-	if command, ok := bot.commands["/" + update.Message.Command()]; ok {
+	if command, ok := bot.commands["/"+update.Message.Command()]; ok {
 		return command.Handler(bot, update)
 	}
 	return errors.New("command not found")
