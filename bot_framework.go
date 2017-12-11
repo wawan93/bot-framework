@@ -31,13 +31,18 @@ func NewBotFramework(api Sendable) *BotFramework {
 
 func (bot *BotFramework) HandleUpdates(ch tgbotapi.UpdatesChannel) {
 	for update := range ch {
-		if update.Message == nil {
-			continue
-		}
-		if update.Message.IsCommand() {
-			bot.handleCommand(&update)
-		}
+		go bot.handleUpdate(&update)
 	}
+}
+
+func (bot *BotFramework) handleUpdate(update *tgbotapi.Update) error {
+	if update.Message == nil {
+		return errors.New("no message")
+	}
+	if update.Message.IsCommand() {
+		return bot.handleCommand(update)
+	}
+	return errors.New("not handled")
 }
 
 func (bot *BotFramework) RegisterCommand(c *Command) {
