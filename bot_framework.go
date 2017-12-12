@@ -16,6 +16,8 @@ type BotFramework struct {
 	commands         map[string]commonHandler
 	messages         chan tgbotapi.Chattable
 	plainTextHandler commonHandler
+	photoHandler     commonHandler
+	fileHandler      commonHandler
 }
 
 func NewBotFramework(api Sender) *BotFramework {
@@ -23,6 +25,8 @@ func NewBotFramework(api Sender) *BotFramework {
 		api,
 		make(map[string]commonHandler),
 		make(chan tgbotapi.Chattable),
+		nil,
+		nil,
 		nil,
 	}
 	return &bot
@@ -48,6 +52,12 @@ func (bot *BotFramework) HandleUpdates(ch tgbotapi.UpdatesChannel) {
 func (bot *BotFramework) handleUpdate(update *tgbotapi.Update) error {
 	if update.Message == nil {
 		return errors.New("no message")
+	}
+	if update.Message.Photo != nil {
+		return bot.handlePhoto(update)
+	}
+	if update.Message.Document != nil {
+		return bot.handleFile(update)
 	}
 	if update.Message.IsCommand() {
 		return bot.handleCommand(update)
@@ -115,6 +125,30 @@ func (bot *BotFramework) RegisterPlainTextHandler(f commonHandler) error {
 func (bot *BotFramework) handlePlainText(update *tgbotapi.Update) error {
 	if bot.plainTextHandler != nil {
 		return bot.plainTextHandler(bot, update)
+	}
+	return errors.New("handler not set")
+}
+
+func (bot *BotFramework) RegisterPhotoHandler(f commonHandler) error {
+	bot.photoHandler = f
+	return nil
+}
+
+func (bot *BotFramework) handlePhoto(update *tgbotapi.Update) error {
+	if bot.photoHandler != nil {
+		return bot.photoHandler(bot, update)
+	}
+	return errors.New("handler not set")
+}
+
+func (bot *BotFramework) RegisterFileHandler(f commonHandler) error {
+	bot.fileHandler = f
+	return nil
+}
+
+func (bot *BotFramework) handleFile(update *tgbotapi.Update) error {
+	if bot.fileHandler != nil {
+		return bot.fileHandler(bot, update)
 	}
 	return errors.New("handler not set")
 }
