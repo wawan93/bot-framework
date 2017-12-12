@@ -3,6 +3,7 @@ package bot_framework
 import (
 	"github.com/go-telegram-bot-api/telegram-bot-api"
 	"errors"
+	"log"
 )
 
 type Sender interface {
@@ -35,6 +36,11 @@ func NewBotFramework(api Sender) *BotFramework {
 func (bot *BotFramework) HandleUpdates(ch tgbotapi.UpdatesChannel) {
 	for update := range ch {
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Println(r)
+				}
+			}()
 			err := bot.handleUpdate(&update)
 			if err == nil {
 				return
