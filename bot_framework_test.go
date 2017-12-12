@@ -47,21 +47,24 @@ func TestCommands(t *testing.T) {
 	t.Parallel()
 
 	bot := NewBotFramework(newMock())
-	bot.RegisterCommand(&Command{
-		Name: "/test",
-		Handler: func(bot Sender, update *tgbotapi.Update) error {
+	bot.RegisterCommand(
+		"/test",
+		func(bot Sender, update *tgbotapi.Update) error {
 			return nil
 		},
-	})
+	)
 
 	t.Run("register", func(t *testing.T) {
 		t.Parallel()
 
-		err := bot.RegisterCommand(&Command{
-			Name: "asdf",
-		})
+		err := bot.RegisterCommand("asdf", nil)
 		if err == nil || err.Error() != "command must start with slash" {
 			t.Error("command without slash must return error")
+		}
+
+		err = bot.RegisterCommand("/asdf", nil)
+		if err == nil || err.Error() != "handler must not be nil" {
+			t.Error("nil handler cannot be registered")
 		}
 
 		if len(bot.commands) != 1 {
@@ -102,13 +105,12 @@ func TestBotFramework_HandleUpdates(t *testing.T) {
 
 	mock := newMock()
 	bot := NewBotFramework(mock)
-	bot.RegisterCommand(&Command{
-		Name: "/test",
-		Handler: func(bot Sender, update *tgbotapi.Update) error {
+	bot.RegisterCommand("/test",
+		func(bot Sender, update *tgbotapi.Update) error {
 			bot.Send(&tgbotapi.MessageConfig{})
 			return nil
 		},
-	})
+	)
 
 	channel := make(chan tgbotapi.Update)
 
@@ -182,23 +184,25 @@ func TestBotFramework_RegisterKeyboardCommand(t *testing.T) {
 	mock := newMock()
 	bot := NewBotFramework(mock)
 
-	bot.RegisterKeyboardCommand(&Command{
-		Name: "👍 test",
-		Handler: func(bot Sender, update *tgbotapi.Update) error {
+	bot.RegisterKeyboardCommand(
+		"👍 test",
+		func(bot Sender, update *tgbotapi.Update) error {
 			bot.Send(&tgbotapi.MessageConfig{})
 			return nil
 		},
-	})
+	)
 
 	ch := make(chan tgbotapi.Update)
 
 	t.Run("register", func(t *testing.T) {
 		t.Parallel()
-		err := bot.RegisterKeyboardCommand(&Command{
-			Name: "/asdf",
-		})
+		err := bot.RegisterKeyboardCommand("/asdf", nil)
 		if err == nil || err.Error() != "keyboard command must not start with slash" {
 			t.Error("keyboard command with slash must return error")
+		}
+		err = bot.RegisterKeyboardCommand("asdf", nil)
+		if err == nil || err.Error() != "handler must not be nil" {
+			t.Error("nil handler cannot be registered")
 		}
 
 		if len(bot.commands) != 1 {
@@ -229,12 +233,12 @@ func TestBotFramework_RegisterKeyboardCommand(t *testing.T) {
 			t.Error("Message not sent")
 		}
 
-		bot.RegisterKeyboardCommand(&Command{
-			Name: "👎 test",
-			Handler: func(bot Sender, update *tgbotapi.Update) error {
+		bot.RegisterKeyboardCommand(
+			"👎 test",
+			func(bot Sender, update *tgbotapi.Update) error {
 				return errors.New("test some error")
 			},
-		})
+		)
 
 		ch <- tgbotapi.Update{
 			Message: &tgbotapi.Message{

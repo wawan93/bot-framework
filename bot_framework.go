@@ -5,11 +5,6 @@ import (
 	"errors"
 )
 
-type Command struct {
-	Name    string
-	Handler func(bot Sender, update *tgbotapi.Update) error
-}
-
 type Sender interface {
 	Send(c tgbotapi.Chattable) (tgbotapi.Message, error)
 }
@@ -18,7 +13,7 @@ type commonHandler func(bot Sender, update *tgbotapi.Update) error
 
 type BotFramework struct {
 	Sender
-	commands         map[string]*Command
+	commands         map[string]commonHandler
 	messages         chan tgbotapi.Chattable
 	plainTextHandler commonHandler
 }
@@ -26,7 +21,7 @@ type BotFramework struct {
 func NewBotFramework(api Sender) *BotFramework {
 	bot := BotFramework{
 		api,
-		make(map[string]*Command),
+		make(map[string]commonHandler),
 		make(chan tgbotapi.Chattable),
 		nil,
 	}
@@ -73,27 +68,32 @@ func (bot *BotFramework) handleUpdate(update *tgbotapi.Update) error {
 	return errors.New("unknown command")
 }
 
-func (bot *BotFramework) RegisterCommand(c *Command) error {
-	if c.Name[0] != '/' {
+func (bot *BotFramework) RegisterCommand(name string, f commonHandler) error {
+	if name[0] != '/' {
 		return errors.New("command must start with slash")
 	}
-
-	bot.commands[c.Name] = c
+	if f == nil {
+		return errors.New("handler must not be nil")
+	}
+	bot.commands[name] = f
 	return nil
 }
 
 func (bot *BotFramework) handleCommand(update *tgbotapi.Update) error {
 	if command, ok := bot.commands["/"+update.Message.Command()]; ok {
-		return command.Handler(bot, update)
+		return command(bot, update)
 	}
 	return errors.New("command not found")
 }
 
-func (bot *BotFramework) RegisterKeyboardCommand(c *Command) error {
-	if c.Name[0] == '/' {
+func (bot *BotFramework) RegisterKeyboardCommand(name string, f commonHandler) error {
+	if name[0] == '/' {
 		return errors.New("keyboard command must not start with slash")
 	}
-	bot.commands[c.Name] = c
+	if f == nil {
+		return errors.New("handler must not be nil")
+	}
+	bot.commands[name] = f
 	return nil
 }
 
@@ -102,7 +102,7 @@ func (bot *BotFramework) handleKeyboardCommand(update *tgbotapi.Update) error {
 		return errors.New("no message")
 	}
 	if command, ok := bot.commands[update.Message.Text]; ok {
-		return command.Handler(bot, update)
+		return command(bot, update)
 	}
 	return errors.New("command not found")
 }
