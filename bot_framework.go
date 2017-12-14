@@ -14,16 +14,20 @@ type commonHandler func(bot *BotFramework, update *tgbotapi.Update) error
 
 type BotFramework struct {
 	Sender
-	commands map[string]commonHandler
-	handlers map[string]commonHandler
+	commands map[string]map[int64]commonHandler
+	handlers map[string]map[int64]commonHandler
 }
 
 func NewBotFramework(api Sender) *BotFramework {
 	bot := BotFramework{
 		api,
-		make(map[string]commonHandler),
-		make(map[string]commonHandler, 5),
+		make(map[string]map[int64]commonHandler),
+		make(map[string]map[int64]commonHandler),
 	}
+	bot.handlers["plain"] = make(map[int64]commonHandler)
+	bot.handlers["photo"] = make(map[int64]commonHandler)
+	bot.handlers["file"] = make(map[int64]commonHandler)
+	bot.handlers["callback"] = make(map[int64]commonHandler)
 	return &bot
 }
 
@@ -50,9 +54,6 @@ func (bot *BotFramework) HandleUpdates(ch tgbotapi.UpdatesChannel) {
 }
 
 func (bot *BotFramework) handleUpdate(update *tgbotapi.Update) error {
-	if update.InlineQuery != nil {
-		return bot.handle(update, "inline")
-	}
 	if update.CallbackQuery != nil {
 		return bot.handle(update, "callback")
 	}
@@ -81,84 +82,104 @@ func (bot *BotFramework) handleUpdate(update *tgbotapi.Update) error {
 	return errors.New("unknown command")
 }
 
-func (bot *BotFramework) RegisterCommand(name string, f commonHandler) error {
+func (bot *BotFramework) RegisterCommand(name string, f commonHandler, chatID int64) error {
 	if f == nil {
 		return errors.New("handler must not be nil")
 	}
-	bot.commands[name] = f
+	bot.commands[name] = make(map[int64]commonHandler)
+	bot.commands[name][chatID] = f
 	return nil
 }
 
-func (bot *BotFramework) UnregisterCommand(name string) error {
-	delete(bot.commands, name)
+func (bot *BotFramework) UnregisterCommand(name string, chatID int64) error {
+	delete(bot.commands[name], chatID)
 	return nil
 }
 
 func (bot *BotFramework) handleCommand(update *tgbotapi.Update) error {
+	chatID := bot.getChatID(update)
+
 	if update.Message.IsCommand() {
-		if command, ok := bot.commands[update.Message.Command()]; ok {
-			return command(bot, update)
+		if commands, ok := bot.commands[update.Message.Command()]; ok {
+			if command, ok := commands[chatID]; ok {
+				return command(bot, update)
+			} else if command, ok = commands[0]; ok {
+				return command(bot, update)
+			}
 		}
 	}
-	if command, ok := bot.commands[update.Message.Text]; ok {
-		return command(bot, update)
+	if commands, ok := bot.commands[update.Message.Text]; ok {
+		if command, ok := commands[chatID]; ok {
+			return command(bot, update)
+		} else if command, ok = commands[0]; ok {
+			return command(bot, update)
+		}
 	}
 	return errors.New("command not found")
 }
 
-func (bot *BotFramework) RegisterPlainTextHandler(f commonHandler) error {
-	bot.handlers["plain"] = f
+func (bot *BotFramework) RegisterPlainTextHandler(f commonHandler, chatID int64) error {
+	bot.handlers["plain"][chatID] = f
 	return nil
 }
 
-func (bot *BotFramework) UnregisterPlainTextHandler() error {
-	delete(bot.handlers, "plain")
+func (bot *BotFramework) UnregisterPlainTextHandler(chatID int64) error {
+	delete(bot.handlers["plain"], chatID)
 	return nil
 }
 
-func (bot *BotFramework) RegisterPhotoHandler(f commonHandler) error {
-	bot.handlers["photo"] = f
+func (bot *BotFramework) RegisterPhotoHandler(f commonHandler, chatID int64) error {
+	bot.handlers["photo"][chatID] = f
 	return nil
 }
 
-func (bot *BotFramework) UnregisterPhotoHandler() error {
-	delete(bot.handlers, "photo")
+func (bot *BotFramework) UnregisterPhotoHandler(chatID int64) error {
+	delete(bot.handlers["photo"], chatID)
 	return nil
 }
 
-func (bot *BotFramework) RegisterFileHandler(f commonHandler) error {
-	bot.handlers["file"] = f
+func (bot *BotFramework) RegisterFileHandler(f commonHandler, chatID int64) error {
+	bot.handlers["file"][chatID] = f
 	return nil
 }
 
-func (bot *BotFramework) UnregisterFileHandler() error {
-	delete(bot.handlers, "file")
+func (bot *BotFramework) UnregisterFileHandler(chatID int64) error {
+	delete(bot.handlers["file"], chatID)
 	return nil
 }
 
-func (bot *BotFramework) RegisterInlineQueryHandler(f commonHandler) error {
-	bot.handlers["inline"] = f
+func (bot *BotFramework) RegisterCallbackQueryHandler(f commonHandler, chatID int64) error {
+	bot.handlers["callback"][chatID] = f
 	return nil
 }
 
-func (bot *BotFramework) UnregisterInlineQueryHandler() error {
-	delete(bot.handlers, "inline")
-	return nil
-}
-
-func (bot *BotFramework) RegisterCallbackQueryHandler(f commonHandler) error {
-	bot.handlers["callback"] = f
-	return nil
-}
-
-func (bot *BotFramework) UnregisterCallbackQueryHandler() error {
-	delete(bot.handlers, "callback")
+func (bot *BotFramework) UnregisterCallbackQueryHandler(chatID int64) error {
+	delete(bot.handlers["callback"], chatID)
 	return nil
 }
 
 func (bot *BotFramework) handle(update *tgbotapi.Update, event string) error {
-	if f, ok := bot.handlers[event]; ok && f != nil {
-		return f(bot, update)
+	chatID := bot.getChatID(update)
+	if command, ok := bot.handlers[event][chatID]; ok {
+		return command(bot, update)
+	} else if command, ok = bot.handlers[event][0]; ok {
+		return command(bot, update)
 	}
 	return errors.New("unknown handler")
+}
+
+func (bot *BotFramework) getChatID(update *tgbotapi.Update) int64 {
+	if update.Message != nil {
+		if update.Message.Chat != nil {
+			return update.Message.Chat.ID
+		}
+	}
+
+	if update.CallbackQuery != nil {
+		if update.CallbackQuery.Message.Chat != nil {
+			return update.CallbackQuery.Message.Chat.ID
+		}
+	}
+
+	return 0
 }
