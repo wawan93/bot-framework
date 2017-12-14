@@ -21,13 +21,13 @@ type BotFramework struct {
 func NewBotFramework(api Sender) *BotFramework {
 	bot := BotFramework{
 		api,
-		make(map[string]map[int64]commonHandler),
-		make(map[string]map[int64]commonHandler),
+		make(map[string]map[int64]commonHandler, 100),
+		make(map[string]map[int64]commonHandler, 4),
 	}
-	bot.handlers["plain"] = make(map[int64]commonHandler)
-	bot.handlers["photo"] = make(map[int64]commonHandler)
-	bot.handlers["file"] = make(map[int64]commonHandler)
-	bot.handlers["callback"] = make(map[int64]commonHandler)
+	bot.handlers["plain"] = make(map[int64]commonHandler, 10)
+	bot.handlers["photo"] = make(map[int64]commonHandler, 10)
+	bot.handlers["file"] = make(map[int64]commonHandler, 10)
+	bot.handlers["callback"] = make(map[int64]commonHandler, 10)
 	return &bot
 }
 
@@ -86,7 +86,7 @@ func (bot *BotFramework) RegisterCommand(name string, f commonHandler, chatID in
 	if f == nil {
 		return errors.New("handler must not be nil")
 	}
-	bot.commands[name] = make(map[int64]commonHandler)
+	bot.commands[name] = make(map[int64]commonHandler, 1)
 	bot.commands[name][chatID] = f
 	return nil
 }
