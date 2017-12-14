@@ -3,7 +3,6 @@ package bot_framework
 import (
 	"testing"
 	"github.com/go-telegram-bot-api/telegram-bot-api"
-	"errors"
 )
 
 type testSender struct {
@@ -49,7 +48,7 @@ func TestCommands(t *testing.T) {
 	bot := NewBotFramework(newMock())
 	bot.RegisterCommand(
 		"/test",
-		func(bot Sender, update *tgbotapi.Update) error {
+		func(bot *BotFramework, update *tgbotapi.Update) error {
 			return nil
 		},
 	)
@@ -57,12 +56,7 @@ func TestCommands(t *testing.T) {
 	t.Run("register", func(t *testing.T) {
 		t.Parallel()
 
-		err := bot.RegisterCommand("asdf", nil)
-		if err == nil || err.Error() != "command must start with slash" {
-			t.Error("command without slash must return error")
-		}
-
-		err = bot.RegisterCommand("/asdf", nil)
+		err := bot.RegisterCommand("/asdf", nil)
 		if err == nil || err.Error() != "handler must not be nil" {
 			t.Error("nil handler cannot be registered")
 		}
@@ -106,7 +100,7 @@ func TestBotFramework_HandleUpdates(t *testing.T) {
 	mock := newMock()
 	bot := NewBotFramework(mock)
 	bot.RegisterCommand("/test",
-		func(bot Sender, update *tgbotapi.Update) error {
+		func(bot *BotFramework, update *tgbotapi.Update) error {
 			bot.Send(&tgbotapi.MessageConfig{})
 			return nil
 		},
@@ -174,81 +168,6 @@ func TestBotFramework_HandleUpdates(t *testing.T) {
 
 		if ! <-mock.messages {
 			t.Error("message not sent")
-		}
-	})
-}
-
-func TestBotFramework_RegisterKeyboardCommand(t *testing.T) {
-	t.Parallel()
-
-	mock := newMock()
-	bot := NewBotFramework(mock)
-
-	bot.RegisterKeyboardCommand(
-		"👍 test",
-		func(bot Sender, update *tgbotapi.Update) error {
-			bot.Send(&tgbotapi.MessageConfig{})
-			return nil
-		},
-	)
-
-	ch := make(chan tgbotapi.Update)
-
-	t.Run("register", func(t *testing.T) {
-		t.Parallel()
-		err := bot.RegisterKeyboardCommand("/asdf", nil)
-		if err == nil || err.Error() != "keyboard command must not start with slash" {
-			t.Error("keyboard command with slash must return error")
-		}
-		err = bot.RegisterKeyboardCommand("asdf", nil)
-		if err == nil || err.Error() != "handler must not be nil" {
-			t.Error("nil handler cannot be registered")
-		}
-
-		if len(bot.commands) != 1 {
-			t.Error("Command not registered")
-		}
-	})
-
-	t.Run("handle commands", func(t *testing.T) {
-		t.Parallel()
-		err := bot.handleKeyboardCommand(&tgbotapi.Update{})
-		if err == nil || err.Error() != "no message" {
-			t.Error("handle must return error")
-		}
-	})
-
-	t.Run("handle keyboard command updates", func(t *testing.T) {
-		t.Parallel()
-
-		go bot.HandleUpdates(ch)
-
-		ch <- tgbotapi.Update{
-			Message: &tgbotapi.Message{
-				Text: "👍 test",
-			},
-		}
-
-		if ! <-mock.messages {
-			t.Error("Message not sent")
-		}
-
-		bot.RegisterKeyboardCommand(
-			"👎 test",
-			func(bot Sender, update *tgbotapi.Update) error {
-				return errors.New("test some error")
-			},
-		)
-
-		ch <- tgbotapi.Update{
-			Message: &tgbotapi.Message{
-				Text: "👎 test",
-				Chat: &tgbotapi.Chat{ID: 1},
-			},
-		}
-
-		if ! <-mock.messages {
-			t.Error("Message not sent")
 		}
 	})
 }

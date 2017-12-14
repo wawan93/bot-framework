@@ -10,25 +10,19 @@ type Sender interface {
 	Send(c tgbotapi.Chattable) (tgbotapi.Message, error)
 }
 
-type commonHandler func(bot Sender, update *tgbotapi.Update) error
+type commonHandler func(bot *BotFramework, update *tgbotapi.Update) error
 
 type BotFramework struct {
 	Sender
-	commands         map[string]commonHandler
-	messages         chan tgbotapi.Chattable
-	plainTextHandler commonHandler
-	photoHandler     commonHandler
-	fileHandler      commonHandler
+	commands map[string]commonHandler
+	handlers map[string]commonHandler
 }
 
 func NewBotFramework(api Sender) *BotFramework {
 	bot := BotFramework{
 		api,
 		make(map[string]commonHandler),
-		make(chan tgbotapi.Chattable),
-		nil,
-		nil,
-		nil,
+		make(map[string]commonHandler, 5),
 	}
 	return &bot
 }
@@ -56,27 +50,30 @@ func (bot *BotFramework) HandleUpdates(ch tgbotapi.UpdatesChannel) {
 }
 
 func (bot *BotFramework) handleUpdate(update *tgbotapi.Update) error {
+	if update.InlineQuery != nil {
+		return bot.handle(update, "inline")
+	}
+	if update.CallbackQuery != nil {
+		return bot.handle(update, "callback")
+	}
 	if update.Message == nil {
 		return errors.New("no message")
 	}
 	if update.Message.Photo != nil {
-		return bot.handlePhoto(update)
+		return bot.handle(update, "photo")
 	}
 	if update.Message.Document != nil {
-		return bot.handleFile(update)
-	}
-	if update.Message.IsCommand() {
-		return bot.handleCommand(update)
+		return bot.handle(update, "file")
 	}
 	if update.Message.Text != "" {
-		err := bot.handleKeyboardCommand(update)
+		err := bot.handleCommand(update)
 		if err == nil {
 			return nil
 		}
 		if err.Error() != "command not found" {
 			return err
 		}
-		err = bot.handlePlainText(update)
+		err = bot.handle(update, "plain")
 		if err == nil {
 			return nil
 		}
@@ -85,37 +82,23 @@ func (bot *BotFramework) handleUpdate(update *tgbotapi.Update) error {
 }
 
 func (bot *BotFramework) RegisterCommand(name string, f commonHandler) error {
-	if name[0] != '/' {
-		return errors.New("command must start with slash")
-	}
 	if f == nil {
 		return errors.New("handler must not be nil")
 	}
 	bot.commands[name] = f
+	return nil
+}
+
+func (bot *BotFramework) UnregisterCommand(name string) error {
+	delete(bot.commands, name)
 	return nil
 }
 
 func (bot *BotFramework) handleCommand(update *tgbotapi.Update) error {
-	if command, ok := bot.commands["/"+update.Message.Command()]; ok {
-		return command(bot, update)
-	}
-	return errors.New("command not found")
-}
-
-func (bot *BotFramework) RegisterKeyboardCommand(name string, f commonHandler) error {
-	if name[0] == '/' {
-		return errors.New("keyboard command must not start with slash")
-	}
-	if f == nil {
-		return errors.New("handler must not be nil")
-	}
-	bot.commands[name] = f
-	return nil
-}
-
-func (bot *BotFramework) handleKeyboardCommand(update *tgbotapi.Update) error {
-	if update.Message == nil {
-		return errors.New("no message")
+	if update.Message.IsCommand() {
+		if command, ok := bot.commands[update.Message.Command()]; ok {
+			return command(bot, update)
+		}
 	}
 	if command, ok := bot.commands[update.Message.Text]; ok {
 		return command(bot, update)
@@ -124,37 +107,58 @@ func (bot *BotFramework) handleKeyboardCommand(update *tgbotapi.Update) error {
 }
 
 func (bot *BotFramework) RegisterPlainTextHandler(f commonHandler) error {
-	bot.plainTextHandler = f
+	bot.handlers["plain"] = f
 	return nil
 }
 
-func (bot *BotFramework) handlePlainText(update *tgbotapi.Update) error {
-	if bot.plainTextHandler != nil {
-		return bot.plainTextHandler(bot, update)
-	}
-	return errors.New("handler not set")
+func (bot *BotFramework) UnregisterPlainTextHandler() error {
+	delete(bot.handlers, "plain")
+	return nil
 }
 
 func (bot *BotFramework) RegisterPhotoHandler(f commonHandler) error {
-	bot.photoHandler = f
+	bot.handlers["photo"] = f
 	return nil
 }
 
-func (bot *BotFramework) handlePhoto(update *tgbotapi.Update) error {
-	if bot.photoHandler != nil {
-		return bot.photoHandler(bot, update)
-	}
-	return errors.New("handler not set")
+func (bot *BotFramework) UnregisterPhotoHandler() error {
+	delete(bot.handlers, "photo")
+	return nil
 }
 
 func (bot *BotFramework) RegisterFileHandler(f commonHandler) error {
-	bot.fileHandler = f
+	bot.handlers["file"] = f
 	return nil
 }
 
-func (bot *BotFramework) handleFile(update *tgbotapi.Update) error {
-	if bot.fileHandler != nil {
-		return bot.fileHandler(bot, update)
+func (bot *BotFramework) UnregisterFileHandler() error {
+	delete(bot.handlers, "file")
+	return nil
+}
+
+func (bot *BotFramework) RegisterInlineQueryHandler(f commonHandler) error {
+	bot.handlers["inline"] = f
+	return nil
+}
+
+func (bot *BotFramework) UnregisterInlineQueryHandler() error {
+	delete(bot.handlers, "inline")
+	return nil
+}
+
+func (bot *BotFramework) RegisterCallbackQueryHandler(f commonHandler) error {
+	bot.handlers["callback"] = f
+	return nil
+}
+
+func (bot *BotFramework) UnregisterCallbackQueryHandler() error {
+	delete(bot.handlers, "callback")
+	return nil
+}
+
+func (bot *BotFramework) handle(update *tgbotapi.Update, event string) error {
+	if f, ok := bot.handlers[event]; ok && f != nil {
+		return f(bot, update)
 	}
-	return errors.New("handler not set")
+	return errors.New("unknown handler")
 }
