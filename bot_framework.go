@@ -97,7 +97,7 @@ func (bot *BotFramework) UnregisterCommand(name string, chatID int64) error {
 }
 
 func (bot *BotFramework) handleCommand(update *tgbotapi.Update) error {
-	chatID := bot.getChatID(update)
+	chatID := bot.GetChatID(update)
 
 	if update.Message.IsCommand() {
 		if commands, ok := bot.commands[update.Message.Command()]; ok {
@@ -159,7 +159,7 @@ func (bot *BotFramework) UnregisterCallbackQueryHandler(chatID int64) error {
 }
 
 func (bot *BotFramework) handle(update *tgbotapi.Update, event string) error {
-	chatID := bot.getChatID(update)
+	chatID := bot.GetChatID(update)
 	if command, ok := bot.handlers[event][chatID]; ok {
 		return command(bot, update)
 	} else if command, ok = bot.handlers[event][0]; ok {
@@ -168,7 +168,7 @@ func (bot *BotFramework) handle(update *tgbotapi.Update, event string) error {
 	return errors.New("unknown handler")
 }
 
-func (bot *BotFramework) getChatID(update *tgbotapi.Update) int64 {
+func (bot *BotFramework) GetChatID(update *tgbotapi.Update) int64 {
 	if update.Message != nil {
 		if update.Message.Chat != nil {
 			return update.Message.Chat.ID
