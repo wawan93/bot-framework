@@ -8,6 +8,7 @@ import (
 
 type Sender interface {
 	Send(c tgbotapi.Chattable) (tgbotapi.Message, error)
+	AnswerCallbackQuery(config tgbotapi.CallbackConfig) (tgbotapi.APIResponse, error)
 }
 
 type commonHandler func(bot *BotFramework, update *tgbotapi.Update) error
