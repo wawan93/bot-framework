@@ -54,6 +54,43 @@ func TestNewBotFramework(t *testing.T) {
 	}
 }
 
+func TestBotFramework_GetChatID(t *testing.T) {
+	bot := getBot()
+	cases := []struct {
+		data     *tgbotapi.Update
+		expected int64
+	}{
+		{
+			data: &tgbotapi.Update{
+				Message: &tgbotapi.Message{
+					Chat: &tgbotapi.Chat{ID: 123},
+				},
+			},
+			expected: 123,
+		},
+		{
+			data: &tgbotapi.Update{
+				CallbackQuery: &tgbotapi.CallbackQuery{
+					Message: &tgbotapi.Message{
+						Chat: &tgbotapi.Chat{ID: 345},
+					},
+				},
+			},
+			expected: 345,
+		},
+		{
+			data:     &tgbotapi.Update{},
+			expected: 0,
+		},
+	}
+
+	for _, test := range cases {
+		if bot.GetChatID(test.data) != test.expected {
+			t.Error("chat ID doesn't match")
+		}
+	}
+}
+
 func TestBotFramework_handleUpdate(t *testing.T) {
 	t.Parallel()
 	bot := getBot()
