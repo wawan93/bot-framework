@@ -6,22 +6,17 @@ import (
 	"log"
 )
 
-type Sender interface {
-	Send(c tgbotapi.Chattable) (tgbotapi.Message, error)
-	AnswerCallbackQuery(config tgbotapi.CallbackConfig) (tgbotapi.APIResponse, error)
-}
-
 type commonHandler func(bot *BotFramework, update *tgbotapi.Update) error
 
 type BotFramework struct {
-	Sender
+	tgbotapi.BotAPI
 	commands map[string]map[int64]commonHandler
 	handlers map[string]map[int64]commonHandler
 }
 
-func NewBotFramework(api Sender) *BotFramework {
+func NewBotFramework(api *tgbotapi.BotAPI) *BotFramework {
 	bot := BotFramework{
-		api,
+		*api,
 		make(map[string]map[int64]commonHandler, 100),
 		make(map[string]map[int64]commonHandler, 4),
 	}
