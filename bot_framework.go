@@ -10,8 +10,9 @@ type commonHandler func(bot *BotFramework, update *tgbotapi.Update) error
 
 type BotFramework struct {
 	tgbotapi.BotAPI
-	commands map[string]map[int64]commonHandler
-	handlers map[string]map[int64]commonHandler
+	commands              map[string]map[int64]commonHandler
+	handlers              map[string]map[int64]commonHandler
+	callbackQueryHandlers map[string]map[int64]commonHandler
 }
 
 func NewBotFramework(api *tgbotapi.BotAPI) *BotFramework {
@@ -19,11 +20,11 @@ func NewBotFramework(api *tgbotapi.BotAPI) *BotFramework {
 		*api,
 		make(map[string]map[int64]commonHandler, 100),
 		make(map[string]map[int64]commonHandler, 4),
+		make(map[string]map[int64]commonHandler, 100),
 	}
 	bot.handlers["plain"] = make(map[int64]commonHandler, 10)
 	bot.handlers["photo"] = make(map[int64]commonHandler, 10)
 	bot.handlers["file"] = make(map[int64]commonHandler, 10)
-	bot.handlers["callback"] = make(map[int64]commonHandler, 10)
 	return &bot
 }
 
@@ -51,7 +52,7 @@ func (bot *BotFramework) HandleUpdates(ch tgbotapi.UpdatesChannel) {
 
 func (bot *BotFramework) handleUpdate(update *tgbotapi.Update) error {
 	if update.CallbackQuery != nil {
-		return bot.handle(update, "callback")
+		return bot.handleCallbackQuery(update)
 	}
 	if update.Message == nil {
 		return errors.New("no message")
@@ -144,14 +145,35 @@ func (bot *BotFramework) UnregisterFileHandler(chatID int64) error {
 	return nil
 }
 
-func (bot *BotFramework) RegisterCallbackQueryHandler(f commonHandler, chatID int64) error {
-	bot.handlers["callback"][chatID] = f
+func (bot *BotFramework) RegisterCallbackQueryHandler(f commonHandler, dataStartsWith string, chatID int64) error {
+	if _, ok := bot.callbackQueryHandlers[dataStartsWith]; !ok {
+		bot.callbackQueryHandlers[dataStartsWith] = make(map[int64]commonHandler, 10)
+	}
+	bot.callbackQueryHandlers[dataStartsWith][chatID] = f
 	return nil
 }
 
 func (bot *BotFramework) UnregisterCallbackQueryHandler(chatID int64) error {
 	delete(bot.handlers["callback"], chatID)
 	return nil
+}
+
+func (bot *BotFramework) handleCallbackQuery(update *tgbotapi.Update) error {
+	chatID := bot.GetChatID(update)
+	data := update.CallbackQuery.Data
+
+	for key := range bot.callbackQueryHandlers {
+		if len(key) > len(data) {
+			continue
+		}
+		if data[:len(key)] == key {
+			if command, ok := bot.callbackQueryHandlers[key][chatID]; ok {
+				return command(bot, update)
+			}
+		}
+	}
+
+	return errors.New("unknown handler")
 }
 
 func (bot *BotFramework) handle(update *tgbotapi.Update, event string) error {
@@ -172,7 +194,7 @@ func (bot *BotFramework) GetChatID(update *tgbotapi.Update) int64 {
 	}
 
 	if update.CallbackQuery != nil {
-		if update.CallbackQuery.Message.Chat != nil {
+		if update.CallbackQuery.Message != nil {
 			return update.CallbackQuery.Message.Chat.ID
 		}
 	}
