@@ -153,3 +153,34 @@ func TestBotFramework_CallbackQueryHandlers(t *testing.T) {
 		}
 	}
 }
+
+func TestBotFramework_UnregisterCallbackQueryHandler(t *testing.T) {
+	bot := getBot()
+	bot.RegisterCallbackQueryHandler(
+		func(bot *BotFramework, update *tgbotapi.Update) error {
+			return errors.New("test passed")
+		},
+		"asdf_",
+		0,
+	)
+
+	u := &tgbotapi.Update{
+		CallbackQuery: &tgbotapi.CallbackQuery{
+			Data: "asdf_123",
+		},
+	}
+	err := bot.handleUpdate(u)
+	if err == nil {
+		t.Error("handler is not set")
+	} else if err.Error() != "test passed" {
+		t.Error(err)
+	}
+
+	bot.UnregisterCallbackQueryHandler("asdf_", 0)
+	err = bot.handleUpdate(u)
+	if err == nil {
+		t.Error("handler must not be set")
+	} else if err.Error() != "unknown handler" {
+		t.Error(err)
+	}
+}

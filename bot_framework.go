@@ -154,7 +154,7 @@ func (bot *BotFramework) RegisterCallbackQueryHandler(f commonHandler, dataStart
 }
 
 func (bot *BotFramework) UnregisterCallbackQueryHandler(dataStartsWith string, chatID int64) error {
-	delete(bot.handlers[dataStartsWith], chatID)
+	delete(bot.callbackQueryHandlers[dataStartsWith], chatID)
 	return nil
 }
 
