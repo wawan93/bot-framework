@@ -130,6 +130,19 @@ func TestBotFramework_CallbackQueryHandlers(t *testing.T) {
 			},
 			expected: "test 2",
 		},
+		{
+			data: &tgbotapi.Update{
+				CallbackQuery: &tgbotapi.CallbackQuery{
+					Data: "asdf_123",
+					Message: &tgbotapi.Message{
+						Chat: &tgbotapi.Chat{
+							ID: 12345,
+						},
+					},
+				},
+			},
+			expected: "test",
+		},
 	}
 
 	for _, testCase := range cases {

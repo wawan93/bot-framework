@@ -153,8 +153,8 @@ func (bot *BotFramework) RegisterCallbackQueryHandler(f commonHandler, dataStart
 	return nil
 }
 
-func (bot *BotFramework) UnregisterCallbackQueryHandler(chatID int64) error {
-	delete(bot.handlers["callback"], chatID)
+func (bot *BotFramework) UnregisterCallbackQueryHandler(dataStartsWith string, chatID int64) error {
+	delete(bot.handlers[dataStartsWith], chatID)
 	return nil
 }
 
@@ -168,6 +168,8 @@ func (bot *BotFramework) handleCallbackQuery(update *tgbotapi.Update) error {
 		}
 		if data[:len(key)] == key {
 			if command, ok := bot.callbackQueryHandlers[key][chatID]; ok {
+				return command(bot, update)
+			} else if command, ok = bot.callbackQueryHandlers[key][0]; ok {
 				return command(bot, update)
 			}
 		}
