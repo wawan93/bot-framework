@@ -32,29 +32,23 @@ func okHandler(w http.ResponseWriter, _ *http.Request) {
 	fmt.Fprint(w, `{"ok":true}`)
 }
 
-func getBot() *BotFramework {
+func getBot() BotFramework {
 	server := httptest.NewServer(http.HandlerFunc(okHandler))
 	sUrl, err := url.Parse(server.URL)
-	http.DefaultClient.Transport = rewriteTransport{URL: sUrl}
+	client := server.Client()
+	client.Transport = rewriteTransport{URL: sUrl}
 	api, err := tgbotapi.NewBotAPIWithClient(
 		"token",
-		http.DefaultClient,
+		client,
 	)
 	if err != nil {
 		log.Panic(err)
 	}
-	api.Debug = true
-	return NewBotFramework(api)
-}
-
-func TestNewBotFramework(t *testing.T) {
-	bot := getBot()
-	if bot == nil {
-		t.Fatal(bot)
-	}
+	return *NewBotFramework(api)
 }
 
 func TestBotFramework_GetChatID(t *testing.T) {
+	t.Parallel()
 	bot := getBot()
 	cases := []struct {
 		data     *tgbotapi.Update
@@ -192,6 +186,7 @@ func TestBotFramework_CallbackQueryHandlers(t *testing.T) {
 }
 
 func TestBotFramework_UnregisterCallbackQueryHandler(t *testing.T) {
+	t.Parallel()
 	bot := getBot()
 	bot.RegisterCallbackQueryHandler(
 		func(bot *BotFramework, update *tgbotapi.Update) error {
@@ -220,4 +215,28 @@ func TestBotFramework_UnregisterCallbackQueryHandler(t *testing.T) {
 	} else if err.Error() != "unknown handler" {
 		t.Error(err)
 	}
+}
+
+func TestBotFramework_HandleUpdates(t *testing.T) {
+	t.Parallel()
+	bot := getBot()
+
+	bot.RegisterCommand("test 1", func(bot *BotFramework, update *tgbotapi.Update) error {
+		panic("test passed")
+	}, 0)
+
+	bot.RegisterCommand("test 2", func(bot *BotFramework, update *tgbotapi.Update) error {
+		return errors.New("test passed")
+	}, 0)
+
+	bot.RegisterCommand("test 3", func(bot *BotFramework, update *tgbotapi.Update) error {
+		return nil
+	}, 0)
+
+	uc := make(chan tgbotapi.Update, 3)
+	go bot.HandleUpdates(uc)
+
+	uc <- tgbotapi.Update{Message: &tgbotapi.Message{Text: "test 2"}}
+	uc <- tgbotapi.Update{Message: &tgbotapi.Message{Text: "test 3"}}
+	uc <- tgbotapi.Update{Message: &tgbotapi.Message{Text: "test 1"}}
 }

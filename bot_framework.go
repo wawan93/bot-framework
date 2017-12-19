@@ -30,19 +30,20 @@ func NewBotFramework(api *tgbotapi.BotAPI) *BotFramework {
 
 func (bot *BotFramework) HandleUpdates(ch tgbotapi.UpdatesChannel) {
 	for update := range ch {
+		u := update
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
 					log.Println(r)
 				}
 			}()
-			err := bot.handleUpdate(&update)
+			err := bot.handleUpdate(&u)
 			if err == nil {
 				return
 			}
-			if update.Message != nil {
+			if u.Message != nil {
 				bot.Send(tgbotapi.NewMessage(
-					update.Message.Chat.ID,
+					bot.GetChatID(&u),
 					err.Error(),
 				))
 			}
@@ -76,7 +77,7 @@ func (bot *BotFramework) handleUpdate(update *tgbotapi.Update) error {
 			return nil
 		}
 	}
-	return errors.New("unknown command")
+	return nil
 }
 
 func (bot *BotFramework) RegisterCommand(name string, f commonHandler, chatID int64) error {
