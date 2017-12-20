@@ -1,15 +1,15 @@
 package bot_framework
 
 import (
-	"testing"
+	"errors"
+	"fmt"
 	"github.com/go-telegram-bot-api/telegram-bot-api"
 	"log"
 	"net/http"
-	"fmt"
+	"net/http/httptest"
 	"net/url"
 	"path"
-	"net/http/httptest"
-	"errors"
+	"testing"
 )
 
 type rewriteTransport struct {
@@ -221,22 +221,29 @@ func TestBotFramework_HandleUpdates(t *testing.T) {
 	t.Parallel()
 	bot := getBot()
 
+	chat := &tgbotapi.Chat{ID: 123}
 	bot.RegisterCommand("test 1", func(bot *BotFramework, update *tgbotapi.Update) error {
 		panic("test passed")
-	}, 0)
+	}, chat.ID)
 
 	bot.RegisterCommand("test 2", func(bot *BotFramework, update *tgbotapi.Update) error {
 		return errors.New("test passed")
-	}, 0)
+	}, chat.ID)
 
 	bot.RegisterCommand("test 3", func(bot *BotFramework, update *tgbotapi.Update) error {
 		return nil
-	}, 0)
+	}, chat.ID)
 
 	uc := make(chan tgbotapi.Update, 3)
 	go bot.HandleUpdates(uc)
 
-	uc <- tgbotapi.Update{Message: &tgbotapi.Message{Text: "test 2"}}
-	uc <- tgbotapi.Update{Message: &tgbotapi.Message{Text: "test 3"}}
-	uc <- tgbotapi.Update{Message: &tgbotapi.Message{Text: "test 1"}}
+	uc <- tgbotapi.Update{Message: &tgbotapi.Message{
+		Chat: chat, Text: "test 2",
+	}}
+	uc <- tgbotapi.Update{Message: &tgbotapi.Message{
+		Chat: chat, Text: "test 3",
+	}}
+	uc <- tgbotapi.Update{Message: &tgbotapi.Message{
+		Chat: chat, Text: "test 1",
+	}}
 }

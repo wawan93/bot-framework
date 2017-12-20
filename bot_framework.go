@@ -1,8 +1,8 @@
 package bot_framework
 
 import (
-	"github.com/go-telegram-bot-api/telegram-bot-api"
 	"errors"
+	"github.com/go-telegram-bot-api/telegram-bot-api"
 	"log"
 )
 
@@ -41,7 +41,7 @@ func (bot *BotFramework) HandleUpdates(ch tgbotapi.UpdatesChannel) {
 			if err == nil {
 				return
 			}
-			if u.Message != nil {
+			if bot.GetChatID(&u) != 0 {
 				bot.Send(tgbotapi.NewMessage(
 					bot.GetChatID(&u),
 					err.Error(),
