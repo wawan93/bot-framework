@@ -247,3 +247,61 @@ func TestBotFramework_HandleUpdates(t *testing.T) {
 		Chat: chat, Text: "test 1",
 	}}
 }
+
+func TestBotFramework_PlainTextHandler(t *testing.T) {
+	t.Parallel()
+
+	bot := getBot()
+	chat := &tgbotapi.Chat{ID: 123}
+
+	var reallySent bool
+
+	bot.handleUpdate(&tgbotapi.Update{
+		Message: &tgbotapi.Message{
+			Text: "hello, world!",
+			Chat: chat,
+		},
+	})
+	if reallySent == true {
+		t.Error("plain text handler not registered, but no error retuned")
+	}
+
+	bot.RegisterPlainTextHandler(
+		func(bot *BotFramework, update *tgbotapi.Update) error {
+			reallySent = true
+			return nil
+		},
+		chat.ID,
+	)
+	bot.handleUpdate(&tgbotapi.Update{
+		Message: &tgbotapi.Message{
+			Text: "hello, world!",
+			Chat: chat,
+		},
+	})
+	if reallySent != true {
+		t.Error("message must be sent")
+	}
+	reallySent = false
+
+	bot.handleUpdate(&tgbotapi.Update{
+		Message: &tgbotapi.Message{
+			Text: "hello, world!",
+			Chat: &tgbotapi.Chat{ID: 345},
+		},
+	})
+	if reallySent != false {
+		t.Error("message must not be sent to wrong chat")
+	}
+
+	bot.UnregisterPlainTextHandler(chat.ID)
+	bot.handleUpdate(&tgbotapi.Update{
+		Message: &tgbotapi.Message{
+			Text: "hello, world!",
+			Chat: chat,
+		},
+	})
+	if reallySent != false {
+		t.Error("message must be sent")
+	}
+}
