@@ -256,12 +256,13 @@ func TestBotFramework_PlainTextHandler(t *testing.T) {
 
 	var reallySent bool
 
-	bot.handleUpdate(&tgbotapi.Update{
+	u := &tgbotapi.Update{
 		Message: &tgbotapi.Message{
 			Text: "hello, world!",
 			Chat: chat,
 		},
-	})
+	}
+	bot.handleUpdate(u)
 	if reallySent == true {
 		t.Error("plain text handler not registered, but no error retuned")
 	}
@@ -273,34 +274,67 @@ func TestBotFramework_PlainTextHandler(t *testing.T) {
 		},
 		chat.ID,
 	)
-	bot.handleUpdate(&tgbotapi.Update{
-		Message: &tgbotapi.Message{
-			Text: "hello, world!",
-			Chat: chat,
-		},
-	})
+	bot.handleUpdate(u)
 	if reallySent != true {
 		t.Error("message must be sent")
 	}
 	reallySent = false
 
-	bot.handleUpdate(&tgbotapi.Update{
-		Message: &tgbotapi.Message{
-			Text: "hello, world!",
-			Chat: &tgbotapi.Chat{ID: 345},
-		},
-	})
+	u.Message.Chat.ID = 999
+
+	bot.handleUpdate(u)
 	if reallySent != false {
 		t.Error("message must not be sent to wrong chat")
 	}
 
 	bot.UnregisterPlainTextHandler(chat.ID)
-	bot.handleUpdate(&tgbotapi.Update{
+	bot.handleUpdate(u)
+	if reallySent != false {
+		t.Error("message must be sent")
+	}
+}
+
+func TestBotFramework_PhotoHandler(t *testing.T) {
+	t.Parallel()
+
+	bot := getBot()
+	chat := &tgbotapi.Chat{ID: 123}
+
+	var reallySent bool
+
+	u := &tgbotapi.Update{
 		Message: &tgbotapi.Message{
-			Text: "hello, world!",
+			Photo: &[]tgbotapi.PhotoSize{
+				{},
+			},
 			Chat: chat,
 		},
-	})
+	}
+	bot.handleUpdate(u)
+	if reallySent == true {
+		t.Error("photo handler not registered, but no error retuned")
+	}
+
+	bot.RegisterPhotoHandler(func(bot *BotFramework, update *tgbotapi.Update) error {
+		reallySent = true
+		return nil
+	}, chat.ID)
+
+	bot.handleUpdate(u)
+	if reallySent != true {
+		t.Error("message must be sent")
+	}
+	reallySent = false
+
+	u.Message.Chat.ID = 999
+
+	bot.handleUpdate(u)
+	if reallySent != false {
+		t.Error("message must not be sent to wrong chat")
+	}
+
+	bot.UnregisterPhotoHandler(chat.ID)
+	bot.handleUpdate(u)
 	if reallySent != false {
 		t.Error("message must be sent")
 	}
