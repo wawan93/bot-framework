@@ -18,13 +18,13 @@ type BotFramework struct {
 func NewBotFramework(api *tgbotapi.BotAPI) *BotFramework {
 	bot := BotFramework{
 		*api,
-		make(map[string]map[int64]commonHandler, 100),
-		make(map[string]map[int64]commonHandler, 4),
-		make(map[string]map[int64]commonHandler, 100),
+		make(map[string]map[int64]commonHandler),
+		make(map[string]map[int64]commonHandler),
+		make(map[string]map[int64]commonHandler),
 	}
-	bot.handlers["plain"] = make(map[int64]commonHandler, 10)
-	bot.handlers["photo"] = make(map[int64]commonHandler, 10)
-	bot.handlers["file"] = make(map[int64]commonHandler, 10)
+	bot.handlers["plain"] = make(map[int64]commonHandler)
+	bot.handlers["photo"] = make(map[int64]commonHandler)
+	bot.handlers["file"] = make(map[int64]commonHandler)
 	return &bot
 }
 
