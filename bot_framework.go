@@ -37,7 +37,7 @@ func (bot *BotFramework) HandleUpdates(ch tgbotapi.UpdatesChannel) {
 					log.Println(r)
 				}
 			}()
-			err := bot.handleUpdate(&u)
+			err := bot.HandleUpdate(&u)
 			if err == nil {
 				return
 			}
@@ -51,7 +51,7 @@ func (bot *BotFramework) HandleUpdates(ch tgbotapi.UpdatesChannel) {
 	}
 }
 
-func (bot *BotFramework) handleUpdate(update *tgbotapi.Update) error {
+func (bot *BotFramework) HandleUpdate(update *tgbotapi.Update) error {
 	if update.CallbackQuery != nil {
 		return bot.handleCallbackQuery(update)
 	}

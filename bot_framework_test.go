@@ -90,7 +90,7 @@ func TestBotFramework_handleUpdate(t *testing.T) {
 	bot := getBot()
 
 	u := &tgbotapi.Update{}
-	err := bot.handleUpdate(u)
+	err := bot.HandleUpdate(u)
 	if err == nil || err.Error() != "no message" {
 		t.Error("empty update must not be handled")
 	}
@@ -177,7 +177,7 @@ func TestBotFramework_CallbackQueryHandlers(t *testing.T) {
 	}
 
 	for _, testCase := range cases {
-		if err = bot.handleUpdate(testCase.data); err == nil {
+		if err = bot.HandleUpdate(testCase.data); err == nil {
 			t.Error("handler must return given error")
 		} else if err.Error() != testCase.expected {
 			t.Error(err)
@@ -201,7 +201,7 @@ func TestBotFramework_UnregisterCallbackQueryHandler(t *testing.T) {
 			Data: "asdf_123",
 		},
 	}
-	err := bot.handleUpdate(u)
+	err := bot.HandleUpdate(u)
 	if err == nil {
 		t.Error("handler is not set")
 	} else if err.Error() != "test passed" {
@@ -209,7 +209,7 @@ func TestBotFramework_UnregisterCallbackQueryHandler(t *testing.T) {
 	}
 
 	bot.UnregisterCallbackQueryHandler("asdf_", 0)
-	err = bot.handleUpdate(u)
+	err = bot.HandleUpdate(u)
 	if err == nil {
 		t.Error("handler must not be set")
 	} else if err.Error() != "unknown handler" {
@@ -262,7 +262,7 @@ func TestBotFramework_PlainTextHandler(t *testing.T) {
 			Chat: chat,
 		},
 	}
-	bot.handleUpdate(u)
+	bot.HandleUpdate(u)
 	if reallySent == true {
 		t.Error("plain text handler not registered, but no error retuned")
 	}
@@ -274,7 +274,7 @@ func TestBotFramework_PlainTextHandler(t *testing.T) {
 		},
 		chat.ID,
 	)
-	bot.handleUpdate(u)
+	bot.HandleUpdate(u)
 	if reallySent != true {
 		t.Error("message must be sent")
 	}
@@ -282,13 +282,13 @@ func TestBotFramework_PlainTextHandler(t *testing.T) {
 
 	u.Message.Chat.ID = 999
 
-	bot.handleUpdate(u)
+	bot.HandleUpdate(u)
 	if reallySent != false {
 		t.Error("message must not be sent to wrong chat")
 	}
 
 	bot.UnregisterPlainTextHandler(chat.ID)
-	bot.handleUpdate(u)
+	bot.HandleUpdate(u)
 	if reallySent != false {
 		t.Error("message must be sent")
 	}
@@ -310,7 +310,7 @@ func TestBotFramework_PhotoHandler(t *testing.T) {
 			Chat: chat,
 		},
 	}
-	bot.handleUpdate(u)
+	bot.HandleUpdate(u)
 	if reallySent == true {
 		t.Error("photo handler not registered, but no error retuned")
 	}
@@ -320,7 +320,7 @@ func TestBotFramework_PhotoHandler(t *testing.T) {
 		return nil
 	}, chat.ID)
 
-	bot.handleUpdate(u)
+	bot.HandleUpdate(u)
 	if reallySent != true {
 		t.Error("message must be sent")
 	}
@@ -328,13 +328,13 @@ func TestBotFramework_PhotoHandler(t *testing.T) {
 
 	u.Message.Chat.ID = 999
 
-	bot.handleUpdate(u)
+	bot.HandleUpdate(u)
 	if reallySent != false {
 		t.Error("message must not be sent to wrong chat")
 	}
 
 	bot.UnregisterPhotoHandler(chat.ID)
-	bot.handleUpdate(u)
+	bot.HandleUpdate(u)
 	if reallySent != false {
 		t.Error("message must be sent")
 	}
