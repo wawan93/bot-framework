@@ -84,7 +84,9 @@ func (bot *BotFramework) RegisterCommand(name string, f commonHandler, chatID in
 	if f == nil {
 		return errors.New("handler must not be nil")
 	}
-	bot.commands[name] = make(map[int64]commonHandler, 1)
+	if _, ok := bot.commands[name]; !ok {
+		bot.commands[name] = make(map[int64]commonHandler, 1)
+	}
 	bot.commands[name][chatID] = f
 	return nil
 }
