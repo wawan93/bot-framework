@@ -6,26 +6,26 @@ import (
 	"log"
 )
 
-type commonHandler func(bot *BotFramework, update *tgbotapi.Update) error
+type CommonHandler func(bot *BotFramework, update *tgbotapi.Update) error
 
 type BotFramework struct {
 	tgbotapi.BotAPI
-	commands              map[string]map[int64]commonHandler
-	handlers              map[string]map[int64]commonHandler
-	callbackQueryHandlers map[string]map[int64]commonHandler
+	commands              map[string]map[int64]CommonHandler
+	handlers              map[string]map[int64]CommonHandler
+	callbackQueryHandlers map[string]map[int64]CommonHandler
 }
 
 func NewBotFramework(api *tgbotapi.BotAPI) *BotFramework {
 	bot := BotFramework{
 		*api,
-		make(map[string]map[int64]commonHandler),
-		make(map[string]map[int64]commonHandler),
-		make(map[string]map[int64]commonHandler),
+		make(map[string]map[int64]CommonHandler),
+		make(map[string]map[int64]CommonHandler),
+		make(map[string]map[int64]CommonHandler),
 	}
-	bot.handlers["plain"] = make(map[int64]commonHandler)
-	bot.handlers["photo"] = make(map[int64]commonHandler)
-	bot.handlers["file"] = make(map[int64]commonHandler)
-	bot.handlers["contact"] = make(map[int64]commonHandler)
+	bot.handlers["plain"] = make(map[int64]CommonHandler)
+	bot.handlers["photo"] = make(map[int64]CommonHandler)
+	bot.handlers["file"] = make(map[int64]CommonHandler)
+	bot.handlers["contact"] = make(map[int64]CommonHandler)
 	return &bot
 }
 
@@ -84,12 +84,12 @@ func (bot *BotFramework) HandleUpdate(update *tgbotapi.Update) error {
 	return nil
 }
 
-func (bot *BotFramework) RegisterCommand(name string, f commonHandler, chatID int64) error {
+func (bot *BotFramework) RegisterCommand(name string, f CommonHandler, chatID int64) error {
 	if f == nil {
 		return errors.New("handler must not be nil")
 	}
 	if _, ok := bot.commands[name]; !ok {
-		bot.commands[name] = make(map[int64]commonHandler, 1)
+		bot.commands[name] = make(map[int64]CommonHandler, 1)
 	}
 	bot.commands[name][chatID] = f
 	return nil
@@ -122,7 +122,7 @@ func (bot *BotFramework) handleCommand(update *tgbotapi.Update) error {
 	return errors.New("command not found")
 }
 
-func (bot *BotFramework) RegisterPlainTextHandler(f commonHandler, chatID int64) error {
+func (bot *BotFramework) RegisterPlainTextHandler(f CommonHandler, chatID int64) error {
 	bot.handlers["plain"][chatID] = f
 	return nil
 }
@@ -132,7 +132,7 @@ func (bot *BotFramework) UnregisterPlainTextHandler(chatID int64) error {
 	return nil
 }
 
-func (bot *BotFramework) RegisterContactHandler(f commonHandler, chatID int64) error {
+func (bot *BotFramework) RegisterContactHandler(f CommonHandler, chatID int64) error {
 	bot.handlers["contact"][chatID] = f
 	return nil
 }
@@ -142,7 +142,7 @@ func (bot *BotFramework) UnregisterContactHandler(chatID int64) error {
 	return nil
 }
 
-func (bot *BotFramework) RegisterPhotoHandler(f commonHandler, chatID int64) error {
+func (bot *BotFramework) RegisterPhotoHandler(f CommonHandler, chatID int64) error {
 	bot.handlers["photo"][chatID] = f
 	return nil
 }
@@ -152,7 +152,7 @@ func (bot *BotFramework) UnregisterPhotoHandler(chatID int64) error {
 	return nil
 }
 
-func (bot *BotFramework) RegisterFileHandler(f commonHandler, chatID int64) error {
+func (bot *BotFramework) RegisterFileHandler(f CommonHandler, chatID int64) error {
 	bot.handlers["file"][chatID] = f
 	return nil
 }
@@ -162,9 +162,9 @@ func (bot *BotFramework) UnregisterFileHandler(chatID int64) error {
 	return nil
 }
 
-func (bot *BotFramework) RegisterCallbackQueryHandler(f commonHandler, dataStartsWith string, chatID int64) error {
+func (bot *BotFramework) RegisterCallbackQueryHandler(f CommonHandler, dataStartsWith string, chatID int64) error {
 	if _, ok := bot.callbackQueryHandlers[dataStartsWith]; !ok {
-		bot.callbackQueryHandlers[dataStartsWith] = make(map[int64]commonHandler)
+		bot.callbackQueryHandlers[dataStartsWith] = make(map[int64]CommonHandler)
 	}
 	bot.callbackQueryHandlers[dataStartsWith][chatID] = f
 	return nil
