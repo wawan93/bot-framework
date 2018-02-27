@@ -25,6 +25,7 @@ func NewBotFramework(api *tgbotapi.BotAPI) *BotFramework {
 	bot.handlers["plain"] = make(map[int64]commonHandler)
 	bot.handlers["photo"] = make(map[int64]commonHandler)
 	bot.handlers["file"] = make(map[int64]commonHandler)
+	bot.handlers["contact"] = make(map[int64]commonHandler)
 	return &bot
 }
 
@@ -63,6 +64,9 @@ func (bot *BotFramework) HandleUpdate(update *tgbotapi.Update) error {
 	}
 	if update.Message.Document != nil {
 		return bot.handle(update, "file")
+	}
+	if update.Message.Contact != nil {
+		return bot.handle(update, "contact")
 	}
 	if update.Message.Text != "" {
 		err := bot.handleCommand(update)
@@ -128,6 +132,16 @@ func (bot *BotFramework) UnregisterPlainTextHandler(chatID int64) error {
 	return nil
 }
 
+func (bot *BotFramework) RegisterContactHandler(f commonHandler, chatID int64) error {
+	bot.handlers["contact"][chatID] = f
+	return nil
+}
+
+func (bot *BotFramework) UnregisterContactHandler(chatID int64) error {
+	delete(bot.handlers["contact"], chatID)
+	return nil
+}
+
 func (bot *BotFramework) RegisterPhotoHandler(f commonHandler, chatID int64) error {
 	bot.handlers["photo"][chatID] = f
 	return nil
@@ -150,7 +164,7 @@ func (bot *BotFramework) UnregisterFileHandler(chatID int64) error {
 
 func (bot *BotFramework) RegisterCallbackQueryHandler(f commonHandler, dataStartsWith string, chatID int64) error {
 	if _, ok := bot.callbackQueryHandlers[dataStartsWith]; !ok {
-		bot.callbackQueryHandlers[dataStartsWith] = make(map[int64]commonHandler, 10)
+		bot.callbackQueryHandlers[dataStartsWith] = make(map[int64]commonHandler)
 	}
 	bot.callbackQueryHandlers[dataStartsWith][chatID] = f
 	return nil
