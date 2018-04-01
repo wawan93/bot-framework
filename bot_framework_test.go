@@ -339,3 +339,24 @@ func TestBotFramework_PhotoHandler(t *testing.T) {
 		t.Error("message must be sent")
 	}
 }
+
+func TestHandleCommand(t *testing.T) {
+	bot := getBot()
+	bot.RegisterCommand("/start", func(bot *BotFramework, update *tgbotapi.Update) error {
+		if !update.Message.IsCommand() {
+			t.Errorf("not command %s", update.Message.Text)
+		}
+
+		if update.Message.Command() != "start" {
+			t.Errorf("expected command \"start\", got \"%s\"", update.Message.Command())
+		}
+		return nil
+	}, 0)
+
+	u := &tgbotapi.Update{Message:&tgbotapi.Message{
+		Chat: &tgbotapi.Chat{ID:123},
+		Text:"/start@wawan_pro_bot helloworld",
+		Entities:&[]tgbotapi.MessageEntity{{Offset:0, Length:6, Type:"bot_command"}},
+	}}
+	bot.HandleUpdate(u)
+}

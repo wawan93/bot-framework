@@ -104,7 +104,7 @@ func (bot *BotFramework) handleCommand(update *tgbotapi.Update) error {
 	chatID := bot.GetChatID(update)
 
 	if update.Message.IsCommand() {
-		if commands, ok := bot.commands[update.Message.Command()]; ok {
+		if commands, ok := bot.commands["/"+update.Message.Command()]; ok {
 			if command, ok := commands[chatID]; ok {
 				return command(bot, update)
 			} else if command, ok = commands[0]; ok {
