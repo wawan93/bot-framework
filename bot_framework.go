@@ -26,7 +26,30 @@ func NewBotFramework(api *tgbotapi.BotAPI) *BotFramework {
 	bot.handlers["photo"] = make(map[int64]CommonHandler)
 	bot.handlers["file"] = make(map[int64]CommonHandler)
 	bot.handlers["contact"] = make(map[int64]CommonHandler)
+	bot.handlers["sticker"] = make(map[int64]CommonHandler)
+	bot.handlers["audio"] = make(map[int64]CommonHandler)
+	bot.handlers["video"] = make(map[int64]CommonHandler)
+	bot.handlers["video_note"] = make(map[int64]CommonHandler)
+	bot.handlers["voice"] = make(map[int64]CommonHandler)
+	bot.handlers["location"] = make(map[int64]CommonHandler)
+	bot.handlers["venue"] = make(map[int64]CommonHandler)
 	return &bot
+}
+
+func (bot *BotFramework) GetChatID(update *tgbotapi.Update) int64 {
+	if update.Message != nil {
+		if update.Message.Chat != nil {
+			return update.Message.Chat.ID
+		}
+	}
+
+	if update.CallbackQuery != nil {
+		if update.CallbackQuery.Message != nil {
+			return update.CallbackQuery.Message.Chat.ID
+		}
+	}
+
+	return 0
 }
 
 func (bot *BotFramework) HandleUpdates(ch tgbotapi.UpdatesChannel) {
@@ -67,6 +90,27 @@ func (bot *BotFramework) HandleUpdate(update *tgbotapi.Update) error {
 	}
 	if update.Message.Contact != nil {
 		return bot.handle(update, "contact")
+	}
+	if update.Message.Sticker != nil {
+		return bot.handle(update, "sticker")
+	}
+	if update.Message.Audio != nil {
+		return bot.handle(update, "audio")
+	}
+	if update.Message.Video != nil {
+		return bot.handle(update, "video")
+	}
+	if update.Message.VideoNote != nil {
+		return bot.handle(update, "video_note")
+	}
+	if update.Message.Voice != nil {
+		return bot.handle(update, "voice")
+	}
+	if update.Message.Location != nil {
+		return bot.handle(update, "location")
+	}
+	if update.Message.Venue != nil {
+		return bot.handle(update, "venue")
 	}
 	if update.Message.Text != "" {
 		err := bot.handleCommand(update)
@@ -122,46 +166,6 @@ func (bot *BotFramework) handleCommand(update *tgbotapi.Update) error {
 	return errors.New("command not found")
 }
 
-func (bot *BotFramework) RegisterPlainTextHandler(f CommonHandler, chatID int64) error {
-	bot.handlers["plain"][chatID] = f
-	return nil
-}
-
-func (bot *BotFramework) UnregisterPlainTextHandler(chatID int64) error {
-	delete(bot.handlers["plain"], chatID)
-	return nil
-}
-
-func (bot *BotFramework) RegisterContactHandler(f CommonHandler, chatID int64) error {
-	bot.handlers["contact"][chatID] = f
-	return nil
-}
-
-func (bot *BotFramework) UnregisterContactHandler(chatID int64) error {
-	delete(bot.handlers["contact"], chatID)
-	return nil
-}
-
-func (bot *BotFramework) RegisterPhotoHandler(f CommonHandler, chatID int64) error {
-	bot.handlers["photo"][chatID] = f
-	return nil
-}
-
-func (bot *BotFramework) UnregisterPhotoHandler(chatID int64) error {
-	delete(bot.handlers["photo"], chatID)
-	return nil
-}
-
-func (bot *BotFramework) RegisterFileHandler(f CommonHandler, chatID int64) error {
-	bot.handlers["file"][chatID] = f
-	return nil
-}
-
-func (bot *BotFramework) UnregisterFileHandler(chatID int64) error {
-	delete(bot.handlers["file"], chatID)
-	return nil
-}
-
 func (bot *BotFramework) RegisterCallbackQueryHandler(f CommonHandler, dataStartsWith string, chatID int64) error {
 	if _, ok := bot.callbackQueryHandlers[dataStartsWith]; !ok {
 		bot.callbackQueryHandlers[dataStartsWith] = make(map[int64]CommonHandler)
@@ -205,18 +209,112 @@ func (bot *BotFramework) handle(update *tgbotapi.Update, event string) error {
 	return errors.New("unknown handler")
 }
 
-func (bot *BotFramework) GetChatID(update *tgbotapi.Update) int64 {
-	if update.Message != nil {
-		if update.Message.Chat != nil {
-			return update.Message.Chat.ID
-		}
-	}
+func (bot *BotFramework) RegisterPlainTextHandler(f CommonHandler, chatID int64) error {
+	bot.handlers["plain"][chatID] = f
+	return nil
+}
 
-	if update.CallbackQuery != nil {
-		if update.CallbackQuery.Message != nil {
-			return update.CallbackQuery.Message.Chat.ID
-		}
-	}
+func (bot *BotFramework) UnregisterPlainTextHandler(chatID int64) error {
+	delete(bot.handlers["plain"], chatID)
+	return nil
+}
 
-	return 0
+func (bot *BotFramework) RegisterContactHandler(f CommonHandler, chatID int64) error {
+	bot.handlers["contact"][chatID] = f
+	return nil
+}
+
+func (bot *BotFramework) UnregisterContactHandler(chatID int64) error {
+	delete(bot.handlers["contact"], chatID)
+	return nil
+}
+
+func (bot *BotFramework) RegisterPhotoHandler(f CommonHandler, chatID int64) error {
+	bot.handlers["photo"][chatID] = f
+	return nil
+}
+
+func (bot *BotFramework) UnregisterPhotoHandler(chatID int64) error {
+	delete(bot.handlers["photo"], chatID)
+	return nil
+}
+
+func (bot *BotFramework) RegisterFileHandler(f CommonHandler, chatID int64) error {
+	bot.handlers["file"][chatID] = f
+	return nil
+}
+
+func (bot *BotFramework) UnregisterFileHandler(chatID int64) error {
+	delete(bot.handlers["file"], chatID)
+	return nil
+}
+
+func (bot *BotFramework) RegisterStickerHandler(f CommonHandler, chatID int64) error {
+	bot.handlers["sticker"][chatID] = f
+	return nil
+}
+
+func (bot *BotFramework) UnregisterStickerHandler(chatID int64) error {
+	delete(bot.handlers["sticker"], chatID)
+	return nil
+}
+
+func (bot *BotFramework) RegisterAudioHandler(f CommonHandler, chatID int64) error {
+	bot.handlers["audio"][chatID] = f
+	return nil
+}
+
+func (bot *BotFramework) UnregisterAudioHandler(chatID int64) error {
+	delete(bot.handlers["audio"], chatID)
+	return nil
+}
+
+func (bot *BotFramework) RegisterVideoHandler(f CommonHandler, chatID int64) error {
+	bot.handlers["video"][chatID] = f
+	return nil
+}
+
+func (bot *BotFramework) UnregisterVideoHandler(chatID int64) error {
+	delete(bot.handlers["video"], chatID)
+	return nil
+}
+
+func (bot *BotFramework) RegisterVideoNoteHandler(f CommonHandler, chatID int64) error {
+	bot.handlers["video_note"][chatID] = f
+	return nil
+}
+
+func (bot *BotFramework) UnregisterVideoNoteHandler(chatID int64) error {
+	delete(bot.handlers["video_note"], chatID)
+	return nil
+}
+
+func (bot *BotFramework) RegisterVoiceHandler(f CommonHandler, chatID int64) error {
+	bot.handlers["voice"][chatID] = f
+	return nil
+}
+
+func (bot *BotFramework) UnregisterVoiceHandler(chatID int64) error {
+	delete(bot.handlers["voice"], chatID)
+	return nil
+}
+
+func (bot *BotFramework) RegisterVenueHandler(f CommonHandler, chatID int64) error {
+	bot.handlers["venue"][chatID] = f
+	return nil
+}
+
+func (bot *BotFramework) UnregisterVenueHandler(chatID int64) error {
+	delete(bot.handlers["venue"], chatID)
+	return nil
+}
+
+func (bot *BotFramework) RegisterLocationHandler(f CommonHandler, chatID int64) error {
+	bot.handlers["location"][chatID] = f
+	return nil
+}
+
+func (bot *BotFramework) UnregisterLocationHandler(chatID int64) error {
+	delete(bot.handlers["location"], chatID)
+	return nil
 }
