@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/go-telegram-bot-api/telegram-bot-api"
 	"log"
+	"runtime/debug"
 )
 
 type CommonHandler func(bot *BotFramework, update *tgbotapi.Update) error
@@ -59,6 +60,7 @@ func (bot *BotFramework) HandleUpdates(ch tgbotapi.UpdatesChannel) {
 			defer func() {
 				if r := recover(); r != nil {
 					log.Println(r)
+					debug.PrintStack()
 				}
 			}()
 			err := bot.HandleUpdate(&u)
