@@ -1,4 +1,4 @@
-package bot_framework
+package tgbot
 
 import (
 	"errors"
@@ -34,9 +34,9 @@ func okHandler(w http.ResponseWriter, _ *http.Request) {
 
 func getBot() BotFramework {
 	server := httptest.NewServer(http.HandlerFunc(okHandler))
-	sUrl, err := url.Parse(server.URL)
+	sURL, err := url.Parse(server.URL)
 	client := server.Client()
-	client.Transport = rewriteTransport{URL: sUrl}
+	client.Transport = rewriteTransport{URL: sURL}
 	api, err := tgbotapi.NewBotAPIWithClient(
 		"token",
 		client,
@@ -353,10 +353,10 @@ func TestHandleCommand(t *testing.T) {
 		return nil
 	}, 0)
 
-	u := &tgbotapi.Update{Message:&tgbotapi.Message{
-		Chat: &tgbotapi.Chat{ID:123},
-		Text:"/start@wawan_pro_bot helloworld",
-		Entities:&[]tgbotapi.MessageEntity{{Offset:0, Length:6, Type:"bot_command"}},
+	u := &tgbotapi.Update{Message: &tgbotapi.Message{
+		Chat:     &tgbotapi.Chat{ID: 123},
+		Text:     "/start@wawan_pro_bot helloworld",
+		Entities: &[]tgbotapi.MessageEntity{{Offset: 0, Length: 6, Type: "bot_command"}},
 	}}
 	bot.HandleUpdate(u)
 }
