@@ -16,12 +16,14 @@ type BotFramework struct {
 	commands              map[string]map[int64]CommonHandler
 	handlers              map[string]map[int64]CommonHandler
 	callbackQueryHandlers map[string]map[int64]CommonHandler
+	inlineQueryHandlers   map[string]map[int64]CommonHandler
 }
 
 // NewBotFramework creates new bot instance
 func NewBotFramework(api *tgbotapi.BotAPI) *BotFramework {
 	bot := BotFramework{
 		*api,
+		make(map[string]map[int64]CommonHandler),
 		make(map[string]map[int64]CommonHandler),
 		make(map[string]map[int64]CommonHandler),
 		make(map[string]map[int64]CommonHandler),
@@ -87,6 +89,9 @@ func (bot *BotFramework) HandleUpdates(ch tgbotapi.UpdatesChannel) {
 func (bot *BotFramework) HandleUpdate(update *tgbotapi.Update) error {
 	if update.CallbackQuery != nil {
 		return bot.handleCallbackQuery(update)
+	}
+	if update.InlineQuery != nil {
+		return bot.handleInlineQuery(update)
 	}
 	if update.Message == nil {
 		return errors.New("no message")
@@ -203,6 +208,42 @@ func (bot *BotFramework) handleCallbackQuery(update *tgbotapi.Update) error {
 			if command, ok := bot.callbackQueryHandlers[key][chatID]; ok {
 				return command(bot, update)
 			} else if command, ok = bot.callbackQueryHandlers[key][0]; ok {
+				return command(bot, update)
+			}
+		}
+	}
+
+	return errors.New("unknown handler")
+}
+
+// RegisterInlineQueryHandler binds handler for query
+// If userID = 0, command will work for any user
+func (bot *BotFramework) RegisterInlineQueryHandler(f CommonHandler, query string, userID int64) error {
+	if _, ok := bot.inlineQueryHandlers[query]; !ok {
+		bot.inlineQueryHandlers[query] = make(map[int64]CommonHandler)
+	}
+	bot.inlineQueryHandlers[query][userID] = f
+	return nil
+}
+
+// UnregisterInlineQueryHandler deletes handler for given user
+func (bot *BotFramework) UnregisterInlineQueryHandler(query string, userID int64) error {
+	delete(bot.inlineQueryHandlers[query], userID)
+	return nil
+}
+
+func (bot *BotFramework) handleInlineQuery(update *tgbotapi.Update) error {
+	userID := int64(update.InlineQuery.From.ID)
+	query := update.InlineQuery.Query
+
+	for key := range bot.inlineQueryHandlers {
+		if len(query) > len(key) {
+			continue
+		}
+		if key[:len(query)] == query {
+			if command, ok := bot.inlineQueryHandlers[key][userID]; ok {
+				return command(bot, update)
+			} else if command, ok = bot.inlineQueryHandlers[key][0]; ok {
 				return command(bot, update)
 			}
 		}
