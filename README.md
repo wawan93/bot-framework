@@ -1,11 +1,11 @@
-# Telegram bot framework [![GoDoc](https://godoc.org/github.com/wawan93/my-bot-framework?status.svg)](https://godoc.org/github.com/wawan93/my-bot-framework) [![Go Report Card](https://goreportcard.com/badge/github.com/wawan93/my-bot-framework)](https://goreportcard.com/report/github.com/wawan93/my-bot-framework)
+# Telegram bot framework [![GoDoc](https://godoc.org/github.com/wawan93/bot-framework?status.svg)](https://godoc.org/github.com/wawan93/bot-framework) [![Go Report Card](https://goreportcard.com/badge/github.com/wawan93/bot-framework)](https://goreportcard.com/report/github.com/wawan93/bot-framework)
 `tgbot` is an extension for [telegram-bot-api](https://github.com/go-telegram-bot-api/telegram-bot-api) package.
 It helps you easily bind functions to handle any messages and callback queries
 
 ## Getting started
 Install package:
 ```
-go get -u github.com/wawan93/my-bot-framework
+go get -u github.com/wawan93/bot-framework
 ```
 
 ## Usage 
@@ -14,7 +14,7 @@ package main
 
 import (
 	"github.com/go-telegram-bot-api/telegram-bot-api"
-	"github.com/wawan93/my-bot-framework"
+	"github.com/wawan93/bot-framework"
 )
 
 func Start(bot *tgbot.BotFramework, update *tgbotapi.Update) error {
