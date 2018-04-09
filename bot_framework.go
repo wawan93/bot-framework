@@ -75,7 +75,7 @@ func (bot *BotFramework) HandleUpdates(ch tgbotapi.UpdatesChannel) {
 			if err == nil {
 				return
 			}
-			if bot.GetChatID(&u) != 0 {
+			if bot.GetChatID(&u) > 0 {
 				bot.Send(tgbotapi.NewMessage(
 					bot.GetChatID(&u),
 					err.Error(),
