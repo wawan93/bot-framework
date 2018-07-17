@@ -39,6 +39,7 @@ func NewBotFramework(api *tgbotapi.BotAPI) *BotFramework {
 	bot.handlers["voice"] = make(map[int64]CommonHandler)
 	bot.handlers["location"] = make(map[int64]CommonHandler)
 	bot.handlers["venue"] = make(map[int64]CommonHandler)
+	bot.handlers["any"] = make(map[int64]CommonHandler)
 	return &bot
 }
 
@@ -87,6 +88,10 @@ func (bot *BotFramework) HandleUpdates(ch tgbotapi.UpdatesChannel) {
 
 // HandleUpdate handles single update from channel
 func (bot *BotFramework) HandleUpdate(update *tgbotapi.Update) error {
+	anyErr := bot.handle(update, "any")
+	if anyErr == nil && anyErr.Error() != "no handlers" {
+		return anyErr
+	}
 	if update.CallbackQuery != nil {
 		return bot.handleCallbackQuery(update)
 	}
@@ -402,5 +407,18 @@ func (bot *BotFramework) RegisterLocationHandler(f CommonHandler, chatID int64) 
 // UnregisterLocationHandler deletes handler for given chat
 func (bot *BotFramework) UnregisterLocationHandler(chatID int64) error {
 	delete(bot.handlers["location"], chatID)
+	return nil
+}
+
+// RegisterUniversalHandler binds handler for any message from given chat
+// If chatID = 0, command will work in any chat
+func (bot *BotFramework) RegisterUniversalHandler(f CommonHandler, chatID int64) error {
+	bot.handlers["any"][chatID] = f
+	return nil
+}
+
+// UnregisterUniversalHandler deletes handler for given chat
+func (bot *BotFramework) UnregisterUniversalHandler(chatID int64) error {
+	delete(bot.handlers["any"], chatID)
 	return nil
 }
