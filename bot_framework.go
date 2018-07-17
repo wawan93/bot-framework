@@ -89,7 +89,7 @@ func (bot *BotFramework) HandleUpdates(ch tgbotapi.UpdatesChannel) {
 // HandleUpdate handles single update from channel
 func (bot *BotFramework) HandleUpdate(update *tgbotapi.Update) error {
 	anyErr := bot.handle(update, "any")
-	if anyErr == nil && anyErr.Error() != "no handlers" {
+	if anyErr == nil || anyErr.Error() != "no handlers" {
 		return anyErr
 	}
 	if update.CallbackQuery != nil {
