@@ -3,13 +3,14 @@ package tgbot
 import (
 	"errors"
 	"fmt"
-	"github.com/go-telegram-bot-api/telegram-bot-api"
 	"log"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"path"
 	"testing"
+
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 )
 
 type rewriteTransport struct {
@@ -222,9 +223,6 @@ func TestBotFramework_HandleUpdates(t *testing.T) {
 	bot := getBot()
 
 	chat := &tgbotapi.Chat{ID: 123}
-	bot.RegisterCommand("test 1", func(bot *BotFramework, update *tgbotapi.Update) error {
-		panic("test passed")
-	}, chat.ID)
 
 	bot.RegisterCommand("test 2", func(bot *BotFramework, update *tgbotapi.Update) error {
 		return errors.New("test passed")
@@ -234,7 +232,7 @@ func TestBotFramework_HandleUpdates(t *testing.T) {
 		return nil
 	}, chat.ID)
 
-	uc := make(chan tgbotapi.Update, 3)
+	uc := make(chan tgbotapi.Update, 2)
 	go bot.HandleUpdates(uc)
 
 	uc <- tgbotapi.Update{Message: &tgbotapi.Message{
@@ -242,9 +240,6 @@ func TestBotFramework_HandleUpdates(t *testing.T) {
 	}}
 	uc <- tgbotapi.Update{Message: &tgbotapi.Message{
 		Chat: chat, Text: "test 3",
-	}}
-	uc <- tgbotapi.Update{Message: &tgbotapi.Message{
-		Chat: chat, Text: "test 1",
 	}}
 }
 
