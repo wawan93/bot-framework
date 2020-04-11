@@ -3,7 +3,6 @@ package tgbot
 import (
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -33,9 +32,12 @@ func okHandler(w http.ResponseWriter, _ *http.Request) {
 	fmt.Fprint(w, `{"ok":true}`)
 }
 
-func getBot() BotFramework {
+func getBot(t *testing.T) BotFramework {
 	server := httptest.NewServer(http.HandlerFunc(okHandler))
 	sURL, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
 	client := server.Client()
 	client.Transport = rewriteTransport{URL: sURL}
 	api, err := tgbotapi.NewBotAPIWithClient(
@@ -43,14 +45,14 @@ func getBot() BotFramework {
 		client,
 	)
 	if err != nil {
-		log.Panic(err)
+		t.Fatal(err)
 	}
 	return *NewBotFramework(api)
 }
 
 func TestBotFramework_GetChatID(t *testing.T) {
 	t.Parallel()
-	bot := getBot()
+	bot := getBot(t)
 	cases := []struct {
 		data     *tgbotapi.Update
 		expected int64
@@ -88,7 +90,7 @@ func TestBotFramework_GetChatID(t *testing.T) {
 
 func TestBotFramework_handleUpdate(t *testing.T) {
 	t.Parallel()
-	bot := getBot()
+	bot := getBot(t)
 
 	u := &tgbotapi.Update{}
 	err := bot.HandleUpdate(u)
@@ -99,7 +101,7 @@ func TestBotFramework_handleUpdate(t *testing.T) {
 
 func TestBotFramework_CallbackQueryHandlers(t *testing.T) {
 	t.Parallel()
-	bot := getBot()
+	bot := getBot(t)
 
 	err := bot.RegisterCallbackQueryHandler(
 		func(bot *BotFramework, update *tgbotapi.Update) error {
@@ -188,7 +190,7 @@ func TestBotFramework_CallbackQueryHandlers(t *testing.T) {
 
 func TestBotFramework_UnregisterCallbackQueryHandler(t *testing.T) {
 	t.Parallel()
-	bot := getBot()
+	bot := getBot(t)
 	bot.RegisterCallbackQueryHandler(
 		func(bot *BotFramework, update *tgbotapi.Update) error {
 			return errors.New("test passed")
@@ -220,7 +222,7 @@ func TestBotFramework_UnregisterCallbackQueryHandler(t *testing.T) {
 
 func TestBotFramework_HandleUpdates(t *testing.T) {
 	t.Parallel()
-	bot := getBot()
+	bot := getBot(t)
 
 	chat := &tgbotapi.Chat{ID: 123}
 
@@ -246,7 +248,7 @@ func TestBotFramework_HandleUpdates(t *testing.T) {
 func TestBotFramework_PlainTextHandler(t *testing.T) {
 	t.Parallel()
 
-	bot := getBot()
+	bot := getBot(t)
 	chat := &tgbotapi.Chat{ID: 123}
 
 	var reallySent bool
@@ -292,7 +294,7 @@ func TestBotFramework_PlainTextHandler(t *testing.T) {
 func TestBotFramework_PhotoHandler(t *testing.T) {
 	t.Parallel()
 
-	bot := getBot()
+	bot := getBot(t)
 	chat := &tgbotapi.Chat{ID: 123}
 
 	var reallySent bool
@@ -336,7 +338,7 @@ func TestBotFramework_PhotoHandler(t *testing.T) {
 }
 
 func TestHandleCommand(t *testing.T) {
-	bot := getBot()
+	bot := getBot(t)
 	bot.RegisterCommand("/start", func(bot *BotFramework, update *tgbotapi.Update) error {
 		if !update.Message.IsCommand() {
 			t.Errorf("not command %s", update.Message.Text)
@@ -354,4 +356,22 @@ func TestHandleCommand(t *testing.T) {
 		Entities: &[]tgbotapi.MessageEntity{{Offset: 0, Length: 6, Type: "bot_command"}},
 	}}
 	bot.HandleUpdate(u)
+}
+
+func TestRaceConditions(t *testing.T) {
+	bot := getBot(t)
+	f := func() {
+		go bot.RegisterCommand(
+			"/start",
+			func(bot *BotFramework, update *tgbotapi.Update) error { return nil },
+			123,
+		)
+	}
+	g := func() {
+		go bot.UnregisterCommand("/start", 123)
+	}
+	for i := 0; i < 100; i++ {
+		go f()
+		go g()
+	}
 }
