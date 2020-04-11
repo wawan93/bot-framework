@@ -2,9 +2,8 @@ package tgbot
 
 import (
 	"errors"
-	"github.com/go-telegram-bot-api/telegram-bot-api"
-	"log"
-	"runtime/debug"
+
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 )
 
 // CommonHandler is a short type alias for handler function
@@ -66,12 +65,6 @@ func (bot *BotFramework) HandleUpdates(ch tgbotapi.UpdatesChannel) {
 	for update := range ch {
 		u := update
 		go func() {
-			defer func() {
-				if r := recover(); r != nil {
-					log.Println(r)
-					debug.PrintStack()
-				}
-			}()
 			err := bot.HandleUpdate(&u)
 			if err == nil {
 				return
