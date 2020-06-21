@@ -18,6 +18,7 @@ type BotFramework struct {
 	callbackQueryHandlers map[string]map[int64]CommonHandler
 	inlineQueryHandlers   map[string]map[int64]CommonHandler
 	mu                    sync.Mutex
+	ErrorHandler          func(u tgbotapi.Update, err error)
 }
 
 // NewBotFramework creates new bot instance
@@ -41,6 +42,14 @@ func NewBotFramework(api *tgbotapi.BotAPI) *BotFramework {
 	bot.handlers["location"] = make(map[int64]CommonHandler)
 	bot.handlers["venue"] = make(map[int64]CommonHandler)
 	bot.handlers["any"] = make(map[int64]CommonHandler)
+	bot.ErrorHandler = func(u tgbotapi.Update, err error) {
+		if bot.GetChatID(&u) > 0 {
+			bot.Send(tgbotapi.NewMessage(
+				bot.GetChatID(&u),
+				err.Error(),
+			))
+		}
+	}
 	return &bot
 }
 
@@ -71,12 +80,7 @@ func (bot *BotFramework) HandleUpdates(ch tgbotapi.UpdatesChannel) {
 			if err == nil {
 				return
 			}
-			if bot.GetChatID(&u) > 0 {
-				bot.Send(tgbotapi.NewMessage(
-					bot.GetChatID(&u),
-					err.Error(),
-				))
-			}
+			bot.ErrorHandler(u, err)
 		}()
 	}
 }
