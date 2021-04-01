@@ -8,7 +8,8 @@ Install package:
 go get -u github.com/wawan93/bot-framework
 ```
 
-## Usage 
+## Usage
+
 ```go
 package main
 
@@ -17,11 +18,31 @@ import (
 	"github.com/wawan93/bot-framework"
 )
 
-func Start(bot *tgbot.BotFramework, update *tgbotapi.Update) error {
+type StartCommand struct {
+    bot *BotFramework
+	Message string
+	Field1  struct {
+		Field2 int
+	}
+}
+
+func (s StartCommand) Exec(bot *tgbot.BotFramework, update *tgbotapi.Update) error {
 	chatID := bot.GetChatID(update)
-	msg := tgbotapi.NewMessage(chatID, "Hello, World!")
+	msg := tgbotapi.NewMessage(chatID, s.Message)
 	_, err := bot.Send(msg)
 	return err
+}
+
+func (s StartCommand) CommandName() string {
+	return "start"
+}
+
+func (s StartCommand) Serialize() (string, error) {
+	return s.Message, nil
+}
+
+func (s StartCommand) Deserialize(data string) tgbot.Command {
+	return StartCommand{bot: s.bot, Message: data}
 }
 
 func main() {
@@ -30,12 +51,19 @@ func main() {
 
 	u := tgbotapi.NewUpdate(0)
 	updates, _ := api.GetUpdatesChan(u)
-  
+
 	// extend api
-	bot := tgbot.NewBotFramework(api)
-  
+	
+	storage := tgbot.MysqlStorage{}
+	
+	bot := tgbot.NewBotFramework(api, storage)
+
+	storage.RegisterFactories(StartCommand{bot: bot}, StopCommand{})
+
+	start := StartCommand{Message: "Hello, World!"}
+
 	// bind handler Start for "/start" command in chat 0 (any chat)
-	bot.RegisterCommand("/start", Start, 0)
+	bot.RegisterCommand("/start", start, 0)
 
 	// endless loop handles updates from channel
 	bot.HandleUpdates(updates)

@@ -8,40 +8,33 @@ import (
 )
 
 // CommonHandler is a short type alias for handler function
-type CommonHandler func(bot *BotFramework, update *tgbotapi.Update) error
+type CommonHandler interface {
+	Exec(bot *BotFramework, update *tgbotapi.Update) error
+	CommandName() string
+	Serialize() (string, error)
+	Deserialize(data string) CommonHandler
+}
+
+type Storage interface {
+	Set(kind string, name string, chatID int64, handler CommonHandler)
+	Get(kind string, name string, chatID int64) (CommonHandler, error)
+	Unset(kind string, name string, chatID int64)
+}
 
 // BotFramework main object to work with. Instantiate using NewBotFramework
 type BotFramework struct {
 	tgbotapi.BotAPI
-	commands              map[string]map[int64]CommonHandler
-	handlers              map[string]map[int64]CommonHandler
-	callbackQueryHandlers map[string]map[int64]CommonHandler
-	inlineQueryHandlers   map[string]map[int64]CommonHandler
-	mu                    sync.Mutex
-	ErrorHandler          func(u tgbotapi.Update, err error)
+	storage      Storage
+	mu           sync.Mutex
+	ErrorHandler func(u tgbotapi.Update, err error)
 }
 
 // NewBotFramework creates new bot instance
-func NewBotFramework(api *tgbotapi.BotAPI) *BotFramework {
+func NewBotFramework(api *tgbotapi.BotAPI, storage Storage) *BotFramework {
 	bot := BotFramework{
-		BotAPI:                *api,
-		commands:              make(map[string]map[int64]CommonHandler),
-		handlers:              make(map[string]map[int64]CommonHandler),
-		callbackQueryHandlers: make(map[string]map[int64]CommonHandler),
-		inlineQueryHandlers:   make(map[string]map[int64]CommonHandler),
+		BotAPI:  *api,
+		storage: storage,
 	}
-	bot.handlers["plain"] = make(map[int64]CommonHandler)
-	bot.handlers["photo"] = make(map[int64]CommonHandler)
-	bot.handlers["file"] = make(map[int64]CommonHandler)
-	bot.handlers["contact"] = make(map[int64]CommonHandler)
-	bot.handlers["sticker"] = make(map[int64]CommonHandler)
-	bot.handlers["audio"] = make(map[int64]CommonHandler)
-	bot.handlers["video"] = make(map[int64]CommonHandler)
-	bot.handlers["video_note"] = make(map[int64]CommonHandler)
-	bot.handlers["voice"] = make(map[int64]CommonHandler)
-	bot.handlers["location"] = make(map[int64]CommonHandler)
-	bot.handlers["venue"] = make(map[int64]CommonHandler)
-	bot.handlers["any"] = make(map[int64]CommonHandler)
 	bot.ErrorHandler = func(u tgbotapi.Update, err error) {
 		if bot.GetChatID(&u) > 0 {
 			bot.Send(tgbotapi.NewMessage(
@@ -152,10 +145,7 @@ func (bot *BotFramework) RegisterCommand(name string, f CommonHandler, chatID in
 	bot.mu.Lock()
 	defer bot.mu.Unlock()
 
-	if _, ok := bot.commands[name]; !ok {
-		bot.commands[name] = make(map[int64]CommonHandler, 1)
-	}
-	bot.commands[name][chatID] = f
+	bot.storage.Set("command", name, chatID, f)
 	return nil
 }
 
@@ -163,7 +153,7 @@ func (bot *BotFramework) RegisterCommand(name string, f CommonHandler, chatID in
 func (bot *BotFramework) UnregisterCommand(name string, chatID int64) error {
 	bot.mu.Lock()
 	defer bot.mu.Unlock()
-	delete(bot.commands[name], chatID)
+	bot.storage.Unset("command", name, chatID)
 	return nil
 }
 
@@ -172,23 +162,23 @@ func (bot *BotFramework) handleCommand(update *tgbotapi.Update) error {
 
 	bot.mu.Lock()
 	if update.Message.IsCommand() {
-		if commands, ok := bot.commands["/"+update.Message.Command()]; ok {
+		if commands, ok := bot.storage.Get("command", "/"+update.Message.Command(), chatID); ok {
 			if command, ok := commands[chatID]; ok {
 				bot.mu.Unlock()
-				return command(bot, update)
+				return command.Exec(bot, update)
 			} else if command, ok = commands[0]; ok {
 				bot.mu.Unlock()
-				return command(bot, update)
+				return command.Exec(bot, update)
 			}
 		}
 	}
 	if commands, ok := bot.commands[update.Message.Text]; ok {
 		if command, ok := commands[chatID]; ok {
 			bot.mu.Unlock()
-			return command(bot, update)
+			return command.Exec(bot, update)
 		} else if command, ok = commands[0]; ok {
 			bot.mu.Unlock()
-			return command(bot, update)
+			return command.Exec(bot, update)
 		}
 	}
 	bot.mu.Unlock()
@@ -228,10 +218,10 @@ func (bot *BotFramework) handleCallbackQuery(update *tgbotapi.Update) error {
 		if data[:len(key)] == key {
 			if command, ok := bot.callbackQueryHandlers[key][chatID]; ok {
 				bot.mu.Unlock()
-				return command(bot, update)
+				return command.Exec(bot, update)
 			} else if command, ok = bot.callbackQueryHandlers[key][0]; ok {
 				bot.mu.Unlock()
-				return command(bot, update)
+				return command.Exec(bot, update)
 			}
 		}
 	}
@@ -272,10 +262,10 @@ func (bot *BotFramework) handleInlineQuery(update *tgbotapi.Update) error {
 		if key[:len(query)] == query {
 			if command, ok := bot.inlineQueryHandlers[key][userID]; ok {
 				bot.mu.Unlock()
-				return command(bot, update)
+				return command.Exec(bot, update)
 			} else if command, ok = bot.inlineQueryHandlers[key][0]; ok {
 				bot.mu.Unlock()
-				return command(bot, update)
+				return command.Exec(bot, update)
 			}
 		}
 	}
@@ -289,10 +279,10 @@ func (bot *BotFramework) handle(update *tgbotapi.Update, event string) error {
 	bot.mu.Lock()
 	if command, ok := bot.handlers[event][chatID]; ok {
 		bot.mu.Unlock()
-		return command(bot, update)
+		return command.Exec(bot, update)
 	} else if command, ok = bot.handlers[event][0]; ok {
 		bot.mu.Unlock()
-		return command(bot, update)
+		return command.Exec(bot, update)
 	}
 	bot.mu.Unlock()
 	return errors.New("no handlers")
@@ -405,7 +395,9 @@ func (bot *BotFramework) UnregisterAudioHandler(chatID int64) error {
 func (bot *BotFramework) RegisterVideoHandler(f CommonHandler, chatID int64) error {
 	bot.mu.Lock()
 	defer bot.mu.Unlock()
-	bot.handlers["video"][chatID] = f
+	bot.handlers.Set("video", chatID, f)
+	if
+	//bot.handlers["video"][chatID] = f
 	return nil
 }
 
