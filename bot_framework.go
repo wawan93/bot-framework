@@ -2,7 +2,6 @@ package tgbot
 
 import (
 	"errors"
-	"sync"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 )
@@ -10,22 +9,38 @@ import (
 // CommonHandler is a short type alias for handler function
 type CommonHandler interface {
 	Exec(bot *BotFramework, update *tgbotapi.Update) error
-	CommandName() string
-	Serialize() (string, error)
-	Deserialize(data string) CommonHandler
 }
 
 type Storage interface {
-	Set(kind string, name string, chatID int64, handler CommonHandler)
-	Get(kind string, name string, chatID int64) (CommonHandler, error)
-	Unset(kind string, name string, chatID int64)
+	Set(kind Kind, name string, chatID int64, handler CommonHandler)
+	Get(kind Kind, name string, chatID int64) (CommonHandler, error)
+	Unset(kind Kind, name string, chatID int64)
 }
+
+type Kind string
+
+const (
+	CommandKind       Kind = "command"
+	PlainTextKind     Kind = "plain"
+	ContactKind       Kind = "contact"
+	PhotoKind         Kind = "photo"
+	FileKind          Kind = "file"
+	StickerKind       Kind = "sticker"
+	AudioKind         Kind = "audio"
+	VideoKind         Kind = "video"
+	VideoNoteKind     Kind = "video_note"
+	VoiceKind         Kind = "voice"
+	VenueKind         Kind = "venue"
+	LocationKind      Kind = "location"
+	InlineQueryKind   Kind = "inline_query"
+	CallbackQueryKind Kind = "callback_query"
+	AnyKind           Kind = "any"
+)
 
 // BotFramework main object to work with. Instantiate using NewBotFramework
 type BotFramework struct {
 	tgbotapi.BotAPI
 	storage      Storage
-	mu           sync.Mutex
 	ErrorHandler func(u tgbotapi.Update, err error)
 }
 
@@ -90,38 +105,39 @@ func (bot *BotFramework) HandleUpdate(update *tgbotapi.Update) error {
 	if update.InlineQuery != nil {
 		return bot.handleInlineQuery(update)
 	}
+
 	if update.Message == nil {
 		return errors.New("no message")
 	}
 	if update.Message.Photo != nil {
-		return bot.handle(update, "photo")
+		return bot.handle(update, PhotoKind)
 	}
 	if update.Message.Document != nil {
-		return bot.handle(update, "file")
+		return bot.handle(update, FileKind)
 	}
 	if update.Message.Contact != nil {
-		return bot.handle(update, "contact")
+		return bot.handle(update, ContactKind)
 	}
 	if update.Message.Sticker != nil {
-		return bot.handle(update, "sticker")
+		return bot.handle(update, StickerKind)
 	}
 	if update.Message.Audio != nil {
-		return bot.handle(update, "audio")
+		return bot.handle(update, AudioKind)
 	}
 	if update.Message.Video != nil {
-		return bot.handle(update, "video")
+		return bot.handle(update, VideoKind)
 	}
 	if update.Message.VideoNote != nil {
-		return bot.handle(update, "video_note")
+		return bot.handle(update, VideoNoteKind)
 	}
 	if update.Message.Voice != nil {
-		return bot.handle(update, "voice")
+		return bot.handle(update, VoiceKind)
 	}
 	if update.Message.Location != nil {
-		return bot.handle(update, "location")
+		return bot.handle(update, LocationKind)
 	}
 	if update.Message.Venue != nil {
-		return bot.handle(update, "venue")
+		return bot.handle(update, VenueKind)
 	}
 	if update.Message.Text != "" {
 		err := bot.handleCommand(update)
@@ -142,354 +158,231 @@ func (bot *BotFramework) RegisterCommand(name string, f CommonHandler, chatID in
 	if f == nil {
 		return errors.New("handler must not be nil")
 	}
-	bot.mu.Lock()
-	defer bot.mu.Unlock()
 
-	bot.storage.Set("command", name, chatID, f)
+	bot.storage.Set(CommandKind, name, chatID, f)
 	return nil
 }
 
 // UnregisterCommand deletes handler for command name in given chat
 func (bot *BotFramework) UnregisterCommand(name string, chatID int64) error {
-	bot.mu.Lock()
-	defer bot.mu.Unlock()
-	bot.storage.Unset("command", name, chatID)
+	bot.storage.Unset(CommandKind, name, chatID)
 	return nil
 }
 
 func (bot *BotFramework) handleCommand(update *tgbotapi.Update) error {
 	chatID := bot.GetChatID(update)
 
-	bot.mu.Lock()
 	if update.Message.IsCommand() {
-		if commands, ok := bot.storage.Get("command", "/"+update.Message.Command(), chatID); ok {
-			if command, ok := commands[chatID]; ok {
-				bot.mu.Unlock()
-				return command.Exec(bot, update)
-			} else if command, ok = commands[0]; ok {
-				bot.mu.Unlock()
-				return command.Exec(bot, update)
-			}
-		}
-	}
-	if commands, ok := bot.commands[update.Message.Text]; ok {
-		if command, ok := commands[chatID]; ok {
-			bot.mu.Unlock()
-			return command.Exec(bot, update)
-		} else if command, ok = commands[0]; ok {
-			bot.mu.Unlock()
+		command, err := bot.storage.Get(CommandKind, "/"+update.Message.Command(), chatID)
+		if err == nil {
 			return command.Exec(bot, update)
 		}
 	}
-	bot.mu.Unlock()
-	return bot.handle(update, "plain")
+
+	command, err := bot.storage.Get(CommandKind, update.Message.Text, chatID)
+	if err == nil {
+		return command.Exec(bot, update)
+	}
+
+	return bot.handle(update, PlainTextKind)
 }
 
 // RegisterCallbackQueryHandler binds handler for callback data
 // If chatID = 0, command will work in any chat
-func (bot *BotFramework) RegisterCallbackQueryHandler(f CommonHandler, dataStartsWith string, chatID int64) error {
-	bot.mu.Lock()
-	defer bot.mu.Unlock()
-	if _, ok := bot.callbackQueryHandlers[dataStartsWith]; !ok {
-		bot.callbackQueryHandlers[dataStartsWith] = make(map[int64]CommonHandler)
-	}
-	bot.callbackQueryHandlers[dataStartsWith][chatID] = f
+func (bot *BotFramework) RegisterCallbackQueryHandler(f CommonHandler, chatID int64) error {
+	bot.storage.Set(CallbackQueryKind, "", chatID, f)
 	return nil
 }
 
 // UnregisterCallbackQueryHandler deletes handler for given chat
-func (bot *BotFramework) UnregisterCallbackQueryHandler(dataStartsWith string, chatID int64) error {
-	bot.mu.Lock()
-	defer bot.mu.Unlock()
-	delete(bot.callbackQueryHandlers[dataStartsWith], chatID)
+func (bot *BotFramework) UnregisterCallbackQueryHandler(chatID int64) error {
+	bot.storage.Unset(CallbackQueryKind, "", chatID)
 	return nil
 }
 
 func (bot *BotFramework) handleCallbackQuery(update *tgbotapi.Update) error {
-	chatID := bot.GetChatID(update)
-	data := update.CallbackQuery.Data
-
-	bot.mu.Lock()
-
-	for key := range bot.callbackQueryHandlers {
-		if len(key) > len(data) {
-			continue
-		}
-		if data[:len(key)] == key {
-			if command, ok := bot.callbackQueryHandlers[key][chatID]; ok {
-				bot.mu.Unlock()
-				return command.Exec(bot, update)
-			} else if command, ok = bot.callbackQueryHandlers[key][0]; ok {
-				bot.mu.Unlock()
-				return command.Exec(bot, update)
-			}
-		}
-	}
-
-	bot.mu.Unlock()
-	return errors.New("unknown handler")
+	return bot.handle(update, CallbackQueryKind)
 }
 
 // RegisterInlineQueryHandler binds handler for query
 // If userID = 0, command will work for any user
-func (bot *BotFramework) RegisterInlineQueryHandler(f CommonHandler, query string, userID int64) error {
-	bot.mu.Lock()
-	defer bot.mu.Unlock()
-	if _, ok := bot.inlineQueryHandlers[query]; !ok {
-		bot.inlineQueryHandlers[query] = make(map[int64]CommonHandler)
-	}
-	bot.inlineQueryHandlers[query][userID] = f
+func (bot *BotFramework) RegisterInlineQueryHandler(f CommonHandler, userID int64) error {
+	bot.storage.Set(InlineQueryKind, "", userID, f)
 	return nil
 }
 
 // UnregisterInlineQueryHandler deletes handler for given user
-func (bot *BotFramework) UnregisterInlineQueryHandler(query string, userID int64) error {
-	bot.mu.Lock()
-	defer bot.mu.Unlock()
-	delete(bot.inlineQueryHandlers[query], userID)
+func (bot *BotFramework) UnregisterInlineQueryHandler(userID int64) error {
+	bot.storage.Unset(InlineQueryKind, "", userID)
 	return nil
 }
 
 func (bot *BotFramework) handleInlineQuery(update *tgbotapi.Update) error {
-	userID := int64(update.InlineQuery.From.ID)
-	query := update.InlineQuery.Query
-
-	bot.mu.Lock()
-	for key := range bot.inlineQueryHandlers {
-		if len(query) > len(key) {
-			continue
-		}
-		if key[:len(query)] == query {
-			if command, ok := bot.inlineQueryHandlers[key][userID]; ok {
-				bot.mu.Unlock()
-				return command.Exec(bot, update)
-			} else if command, ok = bot.inlineQueryHandlers[key][0]; ok {
-				bot.mu.Unlock()
-				return command.Exec(bot, update)
-			}
-		}
-	}
-
-	bot.mu.Unlock()
-	return errors.New("unknown handler")
+	return bot.handle(update, InlineQueryKind)
 }
 
-func (bot *BotFramework) handle(update *tgbotapi.Update, event string) error {
+func (bot *BotFramework) handle(update *tgbotapi.Update, event Kind) error {
 	chatID := bot.GetChatID(update)
-	bot.mu.Lock()
-	if command, ok := bot.handlers[event][chatID]; ok {
-		bot.mu.Unlock()
+	if command, err := bot.storage.Get(event, "", chatID); err == nil {
 		return command.Exec(bot, update)
-	} else if command, ok = bot.handlers[event][0]; ok {
-		bot.mu.Unlock()
+	} else if command, err = bot.storage.Get(event, "", 0); err == nil {
 		return command.Exec(bot, update)
 	}
-	bot.mu.Unlock()
 	return errors.New("no handlers")
 }
 
 // RegisterPlainTextHandler binds handler for plain text message from given chat
 // If chatID = 0, command will work in any chat
 func (bot *BotFramework) RegisterPlainTextHandler(f CommonHandler, chatID int64) error {
-	bot.mu.Lock()
-	defer bot.mu.Unlock()
-	bot.handlers["plain"][chatID] = f
+	bot.storage.Set(PlainTextKind, "", chatID, f)
 	return nil
 }
 
 // UnregisterPlainTextHandler deletes handler for given chat
 func (bot *BotFramework) UnregisterPlainTextHandler(chatID int64) error {
-	bot.mu.Lock()
-	defer bot.mu.Unlock()
-	delete(bot.handlers["plain"], chatID)
+	bot.storage.Unset(PlainTextKind, "", chatID)
 	return nil
 }
 
 // RegisterContactHandler binds handler for contact message from given chat
 // If chatID = 0, command will work in any chat
 func (bot *BotFramework) RegisterContactHandler(f CommonHandler, chatID int64) error {
-	bot.mu.Lock()
-	defer bot.mu.Unlock()
-	bot.handlers["contact"][chatID] = f
+	bot.storage.Set(ContactKind, "", chatID, f)
 	return nil
 }
 
 // UnregisterContactHandler deletes handler for given chat
 func (bot *BotFramework) UnregisterContactHandler(chatID int64) error {
-	bot.mu.Lock()
-	defer bot.mu.Unlock()
-	delete(bot.handlers["contact"], chatID)
+	bot.storage.Unset(ContactKind, "", chatID)
 	return nil
 }
 
 // RegisterPhotoHandler binds handler for photo message from given chat
 // If chatID = 0, command will work in any chat
 func (bot *BotFramework) RegisterPhotoHandler(f CommonHandler, chatID int64) error {
-	bot.mu.Lock()
-	defer bot.mu.Unlock()
-	bot.handlers["photo"][chatID] = f
+	bot.storage.Set(PhotoKind, "", chatID, f)
 	return nil
 }
 
 // UnregisterPhotoHandler deletes handler for given chat
 func (bot *BotFramework) UnregisterPhotoHandler(chatID int64) error {
-	bot.mu.Lock()
-	defer bot.mu.Unlock()
-	delete(bot.handlers["photo"], chatID)
+	bot.storage.Unset(PhotoKind, "", chatID)
 	return nil
 }
 
 // RegisterFileHandler binds handler for file from given chat
 // If chatID = 0, command will work in any chat
 func (bot *BotFramework) RegisterFileHandler(f CommonHandler, chatID int64) error {
-	bot.mu.Lock()
-	defer bot.mu.Unlock()
-	bot.handlers["file"][chatID] = f
+	bot.storage.Set(FileKind, "", chatID, f)
 	return nil
 }
 
 // UnregisterFileHandler deletes handler for given chat
 func (bot *BotFramework) UnregisterFileHandler(chatID int64) error {
-	bot.mu.Lock()
-	defer bot.mu.Unlock()
-	delete(bot.handlers["file"], chatID)
+	bot.storage.Unset(FileKind, "", chatID)
 	return nil
 }
 
 // RegisterStickerHandler binds handler for sticker from given chat
 // If chatID = 0, command will work in any chat
 func (bot *BotFramework) RegisterStickerHandler(f CommonHandler, chatID int64) error {
-	bot.mu.Lock()
-	defer bot.mu.Unlock()
-	bot.handlers["sticker"][chatID] = f
+	bot.storage.Set(StickerKind, "", chatID, f)
 	return nil
 }
 
 // UnregisterStickerHandler deletes handler for given chat
 func (bot *BotFramework) UnregisterStickerHandler(chatID int64) error {
-	bot.mu.Lock()
-	defer bot.mu.Unlock()
-	delete(bot.handlers["sticker"], chatID)
+	bot.storage.Unset(StickerKind, "", chatID)
 	return nil
 }
 
 // RegisterAudioHandler binds handler for audio message from given chat
 // If chatID = 0, command will work in any chat
 func (bot *BotFramework) RegisterAudioHandler(f CommonHandler, chatID int64) error {
-	bot.mu.Lock()
-	defer bot.mu.Unlock()
-	bot.handlers["audio"][chatID] = f
+	bot.storage.Set(AudioKind, "", chatID, f)
 	return nil
 }
 
 // UnregisterAudioHandler deletes handler for given chat
 func (bot *BotFramework) UnregisterAudioHandler(chatID int64) error {
-	bot.mu.Lock()
-	defer bot.mu.Unlock()
-	delete(bot.handlers["audio"], chatID)
+	bot.storage.Unset(AudioKind, "", chatID)
 	return nil
 }
 
 // RegisterVideoHandler binds handler for video message from given chat
 // If chatID = 0, command will work in any chat
 func (bot *BotFramework) RegisterVideoHandler(f CommonHandler, chatID int64) error {
-	bot.mu.Lock()
-	defer bot.mu.Unlock()
-	bot.handlers.Set("video", chatID, f)
-	if
-	//bot.handlers["video"][chatID] = f
+	bot.storage.Set(VideoKind, "", chatID, f)
 	return nil
 }
 
 // UnregisterVideoHandler deletes handler for given chat
 func (bot *BotFramework) UnregisterVideoHandler(chatID int64) error {
-	bot.mu.Lock()
-	defer bot.mu.Unlock()
-	delete(bot.handlers["video"], chatID)
+	bot.storage.Unset(VideoKind, "", chatID)
 	return nil
 }
 
 // RegisterVideoNoteHandler binds handler for video_note message from given chat
 // If chatID = 0, command will work in any chat
 func (bot *BotFramework) RegisterVideoNoteHandler(f CommonHandler, chatID int64) error {
-	bot.mu.Lock()
-	defer bot.mu.Unlock()
-	bot.handlers["video_note"][chatID] = f
+	bot.storage.Set(VideoNoteKind, "", chatID, f)
 	return nil
 }
 
 // UnregisterVideoNoteHandler deletes handler for given chat
 func (bot *BotFramework) UnregisterVideoNoteHandler(chatID int64) error {
-	bot.mu.Lock()
-	defer bot.mu.Unlock()
-	delete(bot.handlers["video_note"], chatID)
+	bot.storage.Unset(VideoNoteKind, "", chatID)
 	return nil
 }
 
 // RegisterVoiceHandler binds handler for voice message from given chat
 // If chatID = 0, command will work in any chat
 func (bot *BotFramework) RegisterVoiceHandler(f CommonHandler, chatID int64) error {
-	bot.mu.Lock()
-	defer bot.mu.Unlock()
-	bot.handlers["voice"][chatID] = f
+	bot.storage.Set(VoiceKind, "", chatID, f)
 	return nil
 }
 
 // UnregisterVoiceHandler deletes handler for given chat
 func (bot *BotFramework) UnregisterVoiceHandler(chatID int64) error {
-	bot.mu.Lock()
-	defer bot.mu.Unlock()
-	delete(bot.handlers["voice"], chatID)
+	bot.storage.Unset(VoiceKind, "", chatID)
 	return nil
 }
 
 // RegisterVenueHandler binds handler for venue message from given chat
 // If chatID = 0, command will work in any chat
 func (bot *BotFramework) RegisterVenueHandler(f CommonHandler, chatID int64) error {
-	bot.mu.Lock()
-	defer bot.mu.Unlock()
-	bot.handlers["venue"][chatID] = f
+	bot.storage.Set(VenueKind, "", chatID, f)
 	return nil
 }
 
 // UnregisterVenueHandler deletes handler for given chat
 func (bot *BotFramework) UnregisterVenueHandler(chatID int64) error {
-	bot.mu.Lock()
-	defer bot.mu.Unlock()
-	delete(bot.handlers["venue"], chatID)
+	bot.storage.Unset(VenueKind, "", chatID)
 	return nil
 }
 
 // RegisterLocationHandler binds handler for location message from given chat
 // If chatID = 0, command will work in any chat
 func (bot *BotFramework) RegisterLocationHandler(f CommonHandler, chatID int64) error {
-	bot.mu.Lock()
-	defer bot.mu.Unlock()
-	bot.handlers["location"][chatID] = f
+	bot.storage.Set(LocationKind, "", chatID, f)
 	return nil
 }
 
 // UnregisterLocationHandler deletes handler for given chat
 func (bot *BotFramework) UnregisterLocationHandler(chatID int64) error {
-	bot.mu.Lock()
-	defer bot.mu.Unlock()
-	delete(bot.handlers["location"], chatID)
+	bot.storage.Unset(LocationKind, "", chatID)
 	return nil
 }
 
 // RegisterUniversalHandler binds handler for any message from given chat
 // If chatID = 0, command will work in any chat
 func (bot *BotFramework) RegisterUniversalHandler(f CommonHandler, chatID int64) error {
-	bot.mu.Lock()
-	defer bot.mu.Unlock()
-	bot.handlers["any"][chatID] = f
+	bot.storage.Set(AnyKind, "", chatID, f)
 	return nil
 }
 
 // UnregisterUniversalHandler deletes handler for given chat
 func (bot *BotFramework) UnregisterUniversalHandler(chatID int64) error {
-	bot.mu.Lock()
-	defer bot.mu.Unlock()
-	delete(bot.handlers["any"], chatID)
+	bot.storage.Unset(AnyKind, "", chatID)
 	return nil
 }
