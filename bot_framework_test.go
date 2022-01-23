@@ -1,6 +1,7 @@
 package tgbot
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -9,7 +10,7 @@ import (
 	"path"
 	"testing"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 type rewriteTransport struct {
@@ -29,7 +30,7 @@ func (t rewriteTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 func okHandler(w http.ResponseWriter, _ *http.Request) {
-	fmt.Fprint(w, `{"ok":true}`)
+	_ = json.NewEncoder(w).Encode(tgbotapi.APIResponse{Ok: true, Result: json.RawMessage(`{}`)})
 }
 
 func getBot(t *testing.T) BotFramework {
@@ -42,6 +43,7 @@ func getBot(t *testing.T) BotFramework {
 	client.Transport = rewriteTransport{URL: sURL}
 	api, err := tgbotapi.NewBotAPIWithClient(
 		"token",
+		server.URL+"/bot%s/%s",
 		client,
 	)
 	if err != nil {
@@ -103,9 +105,10 @@ func TestBotFramework_CallbackQueryHandlers(t *testing.T) {
 	t.Parallel()
 	bot := getBot(t)
 
+	testErr1 := errors.New("test")
 	err := bot.RegisterCallbackQueryHandler(
 		func(bot *BotFramework, update *tgbotapi.Update) error {
-			return errors.New("test")
+			return testErr1
 		},
 		"asdf_",
 		0,
@@ -114,9 +117,10 @@ func TestBotFramework_CallbackQueryHandlers(t *testing.T) {
 		t.Error(err)
 	}
 
+	testErr2 := errors.New("test 2")
 	err = bot.RegisterCallbackQueryHandler(
 		func(bot *BotFramework, update *tgbotapi.Update) error {
-			return errors.New("test 2")
+			return testErr2
 		},
 		"asdf_",
 		123,
@@ -127,7 +131,7 @@ func TestBotFramework_CallbackQueryHandlers(t *testing.T) {
 
 	cases := []struct {
 		data     *tgbotapi.Update
-		expected string
+		expected error
 	}{
 		{
 			data: &tgbotapi.Update{
@@ -135,7 +139,7 @@ func TestBotFramework_CallbackQueryHandlers(t *testing.T) {
 					Data: "asdf_123",
 				},
 			},
-			expected: "test",
+			expected: testErr1,
 		},
 		{
 			data: &tgbotapi.Update{
@@ -143,7 +147,7 @@ func TestBotFramework_CallbackQueryHandlers(t *testing.T) {
 					Data: "asdfqwerty_123",
 				},
 			},
-			expected: "unknown handler",
+			expected: NoHandlersError,
 		},
 		{
 			data: &tgbotapi.Update{
@@ -151,7 +155,7 @@ func TestBotFramework_CallbackQueryHandlers(t *testing.T) {
 					Data: "a",
 				},
 			},
-			expected: "unknown handler",
+			expected: NoHandlersError,
 		},
 		{
 			data: &tgbotapi.Update{
@@ -162,7 +166,7 @@ func TestBotFramework_CallbackQueryHandlers(t *testing.T) {
 					},
 				},
 			},
-			expected: "test 2",
+			expected: testErr2,
 		},
 		{
 			data: &tgbotapi.Update{
@@ -175,16 +179,18 @@ func TestBotFramework_CallbackQueryHandlers(t *testing.T) {
 					},
 				},
 			},
-			expected: "test",
+			expected: testErr1,
 		},
 	}
 
-	for _, testCase := range cases {
-		if err = bot.HandleUpdate(testCase.data); err == nil {
-			t.Error("handler must return given error")
-		} else if err.Error() != testCase.expected {
-			t.Error(err)
-		}
+	for i, tc := range cases {
+		t.Run(fmt.Sprintf("case %d", i), func(t *testing.T) {
+			if err = bot.HandleUpdate(tc.data); err == nil {
+				t.Error("handler must return given error")
+			} else if !errors.Is(err, tc.expected) {
+				t.Error(err)
+			}
+		})
 	}
 }
 
@@ -215,7 +221,7 @@ func TestBotFramework_UnregisterCallbackQueryHandler(t *testing.T) {
 	err = bot.HandleUpdate(u)
 	if err == nil {
 		t.Error("handler must not be set")
-	} else if err.Error() != "unknown handler" {
+	} else if !errors.Is(err, NoHandlersError) {
 		t.Error(err)
 	}
 }
@@ -301,7 +307,7 @@ func TestBotFramework_PhotoHandler(t *testing.T) {
 
 	u := &tgbotapi.Update{
 		Message: &tgbotapi.Message{
-			Photo: &[]tgbotapi.PhotoSize{
+			Photo: []tgbotapi.PhotoSize{
 				{},
 			},
 			Chat: chat,
@@ -353,7 +359,7 @@ func TestHandleCommand(t *testing.T) {
 	u := &tgbotapi.Update{Message: &tgbotapi.Message{
 		Chat:     &tgbotapi.Chat{ID: 123},
 		Text:     "/start@wawan_pro_bot helloworld",
-		Entities: &[]tgbotapi.MessageEntity{{Offset: 0, Length: 6, Type: "bot_command"}},
+		Entities: []tgbotapi.MessageEntity{{Offset: 0, Length: 6, Type: "bot_command"}},
 	}}
 	bot.HandleUpdate(u)
 }
@@ -370,8 +376,15 @@ func TestRaceConditions(t *testing.T) {
 	g := func() {
 		go bot.UnregisterCommand("/start", 123)
 	}
+	h := func() {
+		go bot.HandleUpdate(&tgbotapi.Update{Message: &tgbotapi.Message{
+			Chat: &tgbotapi.Chat{ID: 123},
+			Text: "/start",
+		}})
+	}
 	for i := 0; i < 100; i++ {
 		go f()
 		go g()
+		go h()
 	}
 }
