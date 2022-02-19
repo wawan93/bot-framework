@@ -89,9 +89,6 @@ func (bot *BotFramework) HandleUpdates(ch tgbotapi.UpdatesChannel) {
 
 // HandleUpdate handles single update from channel
 func (bot *BotFramework) HandleUpdate(update *tgbotapi.Update) error {
-	bot.mu.RLock()
-	defer bot.mu.RUnlock()
-
 	anyErr := bot.handle(update, "any")
 	if anyErr == nil || !errors.Is(anyErr, NoHandlersError) {
 		return anyErr
@@ -143,13 +140,19 @@ func (bot *BotFramework) handleCommand(update *tgbotapi.Update) error {
 		key = "/" + update.Message.Command()
 	}
 
+	bot.mu.RLock()
+
 	if commands, ok := bot.commands[key]; ok {
 		if command, ok := commands[chatID]; ok {
+			bot.mu.RUnlock()
 			return command(bot, update)
 		} else if command, ok = commands[0]; ok {
+			bot.mu.RUnlock()
 			return command(bot, update)
 		}
 	}
+
+	bot.mu.RUnlock()
 	return bot.handle(update, "plain")
 }
 
@@ -157,19 +160,24 @@ func (bot *BotFramework) handleCallbackQuery(update *tgbotapi.Update) error {
 	chatID := bot.GetChatID(update)
 	data := update.CallbackQuery.Data
 
+	bot.mu.RLock()
+
 	for key := range bot.callbackQueryHandlers {
 		if len(key) > len(data) {
 			continue
 		}
 		if data[:len(key)] == key {
 			if command, ok := bot.callbackQueryHandlers[key][chatID]; ok {
+				bot.mu.RUnlock()
 				return command(bot, update)
 			} else if command, ok = bot.callbackQueryHandlers[key][0]; ok {
+				bot.mu.RUnlock()
 				return command(bot, update)
 			}
 		}
 	}
 
+	bot.mu.RUnlock()
 	return fmt.Errorf("%w: callback, chatID=%d, data=%s", NoHandlersError, chatID, data)
 }
 
@@ -177,28 +185,40 @@ func (bot *BotFramework) handleInlineQuery(update *tgbotapi.Update) error {
 	userID := int64(update.InlineQuery.From.ID)
 	query := update.InlineQuery.Query
 
+	bot.mu.RLock()
+
 	for key := range bot.inlineQueryHandlers {
 		if len(query) > len(key) {
 			continue
 		}
 		if key[:len(query)] == query {
 			if command, ok := bot.inlineQueryHandlers[key][userID]; ok {
+				bot.mu.RUnlock()
 				return command(bot, update)
 			} else if command, ok = bot.inlineQueryHandlers[key][0]; ok {
+				bot.mu.RUnlock()
 				return command(bot, update)
 			}
 		}
 	}
 
+	bot.mu.RUnlock()
 	return fmt.Errorf("%w: inline, userID=%d, query=%s", NoHandlersError, userID, query)
 }
 
 func (bot *BotFramework) handle(update *tgbotapi.Update, event string) error {
 	chatID := bot.GetChatID(update)
+
+	bot.mu.RLock()
+
 	if command, ok := bot.handlers[event][chatID]; ok {
+		bot.mu.RUnlock()
 		return command(bot, update)
 	} else if command, ok = bot.handlers[event][0]; ok {
+		bot.mu.RUnlock()
 		return command(bot, update)
 	}
+
+	bot.mu.RUnlock()
 	return fmt.Errorf("%w: chatID=%d, event=%s", NoHandlersError, chatID, event)
 }
